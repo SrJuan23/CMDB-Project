@@ -4,7 +4,8 @@ import {
   getCliente360,
   createCliente,
   updateCliente,
-  deleteCliente
+  deleteCliente,
+  cambiarEstadoCliente
 } from '../controllers/clientesController';
 import { authenticateToken, requireRole } from '../middleware/auth';
 
@@ -15,5 +16,6 @@ router.get('/:id/360', authenticateToken, getCliente360);
 router.post('/', authenticateToken, requireRole('ADMIN', 'GESTOR'), createCliente);
 router.put('/:id', authenticateToken, requireRole('ADMIN', 'GESTOR'), updateCliente);
 router.delete('/:id', authenticateToken, requireRole('ADMIN'), deleteCliente);
+router.patch('/:id/estado', authenticateToken, requireRole('ADMIN', 'GESTOR'), cambiarEstadoCliente);
 
 export default router;

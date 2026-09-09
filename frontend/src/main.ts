@@ -3,7 +3,7 @@ import { api, getToken, clearToken } from './services/api';
 import { User, Activo, Cliente, Plataforma, Persona, DashboardStats, HistorialItem } from './types';
 import { renderSidebar, NavigationTab } from './components/Sidebar';
 import { renderNavbar } from './components/Navbar';
-import { renderDashboardView, initDashboardCharts } from './components/DashboardView';
+import { renderDashboardView, initDashboardCharts, DashboardSection, getSavedOrder, saveVisible, saveOrder } from './components/DashboardView';
 import { renderActivosView } from './components/ActivosView';
 import { renderActivoDetailView, initActivoDetailView } from './components/ActivoDetailView';
 import { renderClientesView } from './components/ClientesView';
@@ -29,6 +29,8 @@ let currentUser: User | null = null;
 let sidebarCollapsed = false;
 let detailView: DetailView = null;
 let dashboardStats: DashboardStats | null = null;
+let isDashboardEditing = false;
+let dashboardVisibleSections: Set<string> = new Set(['kpis', 'vigencias', 'atencion', 'charts']);
 let allClientes: Cliente[] = [];
 let allPlataformas: Plataforma[] = [];
 let allPersonas: Persona[] = [];
@@ -61,6 +63,31 @@ async function init() {
     clearToken();
     showLogin();
     return;
+  }
+
+  const savedTab = localStorage.getItem('cmdb_current_tab');
+  if (savedTab && ['dashboard','activos','clientes','plataformas','lideres','administradores','reportes','historial','configuracion'].includes(savedTab)) {
+    currentTab = savedTab as NavigationTab;
+  }
+
+  const savedOrder = localStorage.getItem('cmdb_dashboard_order');
+  if (savedOrder) {
+    try {
+      const order = JSON.parse(savedOrder) as DashboardSection[];
+      if (Array.isArray(order) && order.length > 0) {
+        localStorage.setItem('cmdb_dashboard_order', JSON.stringify(order));
+      }
+    } catch {}
+  }
+
+  const savedVisible = localStorage.getItem('cmdb_dashboard_visible');
+  if (savedVisible) {
+    try {
+      const arr = JSON.parse(savedVisible) as string[];
+      if (Array.isArray(arr) && arr.length > 0) {
+        dashboardVisibleSections = new Set(arr);
+      }
+    } catch {}
   }
 
   await loadInitialData();
@@ -209,16 +236,17 @@ function renderApp() {
   if (!app) return;
 
   app.innerHTML = `
-    <div class="flex min-h-screen bg-[#F7F8FD]">
+    <div class="flex h-screen bg-[#F7F8FD] overflow-hidden">
       ${renderSidebar(currentTab, sidebarCollapsed, dashboardStats?.kpis?.total_activos || activosMeta.total || 0)}
-      <div class="flex-1 flex flex-col min-w-0">
+      <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
         ${renderNavbar(currentUser, handleSearch, handleRoleChange, handleNotifications, notificationsCount)}
-        <main id="main-content" class="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">${renderCurrentView()}</main>
+        <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">${renderCurrentView()}</main>
       </div>
     </div>`;
 
   if (currentTab === 'dashboard' && dashboardStats) {
     initDashboardCharts(dashboardStats);
+    initDashboardSortable();
   }
 
   if (detailView) {
@@ -238,8 +266,8 @@ function renderCurrentView(): string {
   }
 
   switch (currentTab) {
-    case 'dashboard': 
-      return dashboardStats ? renderDashboardView(dashboardStats) : '<div class="text-center py-12 text-slate-400 font-body">Cargando dashboard...</div>';
+    case 'dashboard':
+      return dashboardStats ? renderDashboardView(dashboardStats, isDashboardEditing, dashboardVisibleSections) : '<div class="text-center py-12 text-slate-400 font-body">Cargando dashboard...</div>';
     case 'activos': 
       return renderActivosView(
         activosData, 
@@ -279,6 +307,7 @@ function renderCurrentView(): string {
 
 async function navigateTo(tab: NavigationTab) {
   currentTab = tab;
+  localStorage.setItem('cmdb_current_tab', tab);
   detailView = null;
 
   if (tab === 'activos') {
@@ -399,6 +428,48 @@ async function toggleEstado(id: number, estadoActual: string, codigo: string) {
       try {
         await api.cambiarEstado(id, nuevoEstado as any);
         showToast(`${codigo} actualizado a ${nuevoEstado}`, 'success');
+        await loadInitialData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Error al cambiar estado', 'error');
+      }
+    }
+  });
+}
+
+async function toggleEstadoCliente(id: number, estadoActual: string) {
+  const nuevoEstado = estadoActual === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+  showConfirmDialog({
+    title: `Cambiar estado a ${nuevoEstado}`,
+    message: `¿Deseas cambiar este cliente a ${nuevoEstado}?`,
+    confirmText: `Confirmar (${nuevoEstado})`,
+    cancelText: 'Cancelar',
+    isDanger: nuevoEstado === 'INACTIVO',
+    onConfirm: async () => {
+      try {
+        await api.cambiarEstadoCliente(id, nuevoEstado);
+        showToast(`Cliente actualizado a ${nuevoEstado}`, 'success');
+        await loadInitialData();
+        renderApp();
+      } catch (err: any) {
+        showToast(err.message || 'Error al cambiar estado', 'error');
+      }
+    }
+  });
+}
+
+async function toggleEstadoPlataforma(id: number, estadoActual: string) {
+  const nuevoEstado = estadoActual === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+  showConfirmDialog({
+    title: `Cambiar estado a ${nuevoEstado}`,
+    message: `¿Deseas cambiar esta plataforma a ${nuevoEstado}?`,
+    confirmText: `Confirmar (${nuevoEstado})`,
+    cancelText: 'Cancelar',
+    isDanger: nuevoEstado === 'INACTIVO',
+    onConfirm: async () => {
+      try {
+        await api.cambiarEstadoPlataforma(id, nuevoEstado);
+        showToast(`Plataforma actualizada a ${nuevoEstado}`, 'success');
         await loadInitialData();
         renderApp();
       } catch (err: any) {
@@ -631,7 +702,7 @@ function showActivoForm(activo?: any) {
           <!-- Correo Soporte -->
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Correo de Soporte</label>
-            <input type="email" id="f-mail" value="${activo?.correo_soporte || ''}" class="cmdb-input text-xs" placeholder="soporte@empresa.com" />
+            <input type="email" id="f-mail" value="${activo ? (activo.correo_soporte || '') : 'soporte.tech@telefonica.com'}" class="cmdb-input text-xs" placeholder="soporte@empresa.com" />
           </div>
 
           <!-- Soporte N1 -->
@@ -729,85 +800,6 @@ function showActivoForm(activo?: any) {
       renderApp();
     } catch (err: any) {
       showToast(err.message || 'Error al guardar activo', 'error');
-    }
-  });
-}
-
-function showTicketModal(activoId: number) {
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn';
-  modal.innerHTML = `
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-[#19255A] font-heading">Registrar Ticket de Soporte</h3>
-        <button id="close-ticket-x" class="text-slate-400 hover:text-slate-600">✕</button>
-      </div>
-
-      <form id="ticket-form" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Código del Ticket *</label>
-          <input type="text" id="t-code" required class="cmdb-input text-xs font-mono" placeholder="Ej: INC-98432 o TCK-2026-01" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Título / Descripción del Caso *</label>
-          <input type="text" id="t-title" required class="cmdb-input text-xs" placeholder="Ej: Falla en enlace de fibra o cambio de fuente" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Prioridad</label>
-            <select id="t-prio" class="cmdb-input text-xs">
-              <option value="BAJA">BAJA</option>
-              <option value="MEDIA" selected>MEDIA</option>
-              <option value="ALTA">ALTA</option>
-              <option value="CRITICA">CRÍTICA</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Estado</label>
-            <select id="t-status" class="cmdb-input text-xs">
-              <option value="ABIERTO" selected>ABIERTO</option>
-              <option value="EN PROCESO">EN PROCESO</option>
-              <option value="RESUELTO">RESUELTO</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-3 pt-2">
-          <button type="button" id="cancel-ticket-form" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition font-heading">
-            Cancelar
-          </button>
-          <button type="submit" class="btn-primary text-xs">Guardar Ticket</button>
-        </div>
-      </form>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  const cleanup = () => modal.remove();
-
-  modal.querySelector('#cancel-ticket-form')?.addEventListener('click', cleanup);
-  modal.querySelector('#close-ticket-x')?.addEventListener('click', cleanup);
-  modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(); });
-
-  modal.querySelector('#ticket-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const data = {
-      activo_id: activoId,
-      ticket_codigo: (document.getElementById('t-code') as HTMLInputElement).value.trim(),
-      titulo: (document.getElementById('t-title') as HTMLInputElement).value.trim(),
-      prioridad: (document.getElementById('t-prio') as HTMLSelectElement).value,
-      estado: (document.getElementById('t-status') as HTMLSelectElement).value
-    };
-
-    try {
-      await api.createTicket(data);
-      showToast('Ticket registrado exitosamente', 'success');
-      cleanup();
-      initActivoDetailView(activoId);
-    } catch (err: any) {
-      showToast(err.message || 'Error al crear ticket', 'error');
     }
   });
 }
@@ -1176,6 +1168,45 @@ function setupGlobalListeners() {
       );
       return;
     }
+    if (btn.hasAttribute('data-toggle-cliente')) {
+      await toggleEstadoCliente(
+        Number(btn.getAttribute('data-toggle-cliente')),
+        btn.getAttribute('data-current-estado') || 'ACTIVO'
+      );
+      return;
+    }
+    if (btn.hasAttribute('data-toggle-plataforma')) {
+      await toggleEstadoPlataforma(
+        Number(btn.getAttribute('data-toggle-plataforma')),
+        btn.getAttribute('data-current-estado') || 'ACTIVO'
+      );
+      return;
+    }
+
+    // Dashboard editing
+    if (btn.id === 'edit-dashboard-btn') {
+      isDashboardEditing = true;
+      renderApp();
+      setupGlobalListeners();
+      initDashboardSortable();
+      return;
+    }
+    if (btn.id === 'exit-edit-mode-btn') {
+      isDashboardEditing = false;
+      renderApp();
+      setupGlobalListeners();
+      return;
+    }
+    if (btn.hasAttribute('data-remove-section')) {
+      const sectionId = btn.getAttribute('data-remove-section');
+      if (sectionId) {
+        dashboardVisibleSections.delete(sectionId);
+        saveVisible(dashboardVisibleSections);
+        renderApp();
+        setupGlobalListeners();
+      }
+      return;
+    }
 
     // Filter Estado Tabs
     if (btn.hasAttribute('data-filter-estado')) {
@@ -1187,14 +1218,7 @@ function setupGlobalListeners() {
       return;
     }
 
-    // Activo Detail: Add ticket
-    if (btn.id === 'add-ticket-btn') {
-      const activoId = Number(btn.getAttribute('data-activo-id'));
-      if (!isNaN(activoId)) showTicketModal(activoId);
-      return;
-    }
-
-    // Activos Pagination
+    // Filter Estado Tabs
     if (btn.id === 'prev-page-btn') {
       const p = Number(activosFilters.page || '1');
       if (p > 1) {
@@ -1365,6 +1389,24 @@ function setupGlobalListeners() {
       return;
     }
 
+    if (target.id === 'add-section-select') {
+      const select = target as HTMLSelectElement;
+      const sectionId = select.value;
+      if (sectionId) {
+        dashboardVisibleSections.add(sectionId);
+        saveVisible(dashboardVisibleSections);
+        const order = getSavedOrder();
+        if (!order.includes(sectionId as any)) {
+          order.push(sectionId as any);
+          saveOrder(order);
+        }
+        renderApp();
+        setupGlobalListeners();
+        initDashboardSortable();
+      }
+      return;
+    }
+
     const filterMap: Record<string, string> = {
       'select-limit': 'limit',
       'filter-sort-by': 'sort_by',
@@ -1402,6 +1444,62 @@ function setupGlobalListeners() {
         performSearch();
       }
     }
+  });
+}
+
+function initDashboardSortable() {
+  const container = document.querySelector('main #main-content > div');
+  if (!container) return;
+
+  const sections = Array.from(container.querySelectorAll('[data-section]'));
+  if (sections.length === 0) return;
+
+  const savedOrder = localStorage.getItem('cmdb_dashboard_order');
+  const defaultOrder = sections.map(s => s.getAttribute('data-section') as string);
+  const targetOrder = savedOrder ? JSON.parse(savedOrder) : defaultOrder;
+
+  if (savedOrder) {
+    const map = new Map(sections.map(s => [s.getAttribute('data-section'), s]));
+    const ordered = targetOrder.map((key: string) => map.get(key)).filter((el: HTMLElement | undefined): el is HTMLElement => Boolean(el));
+    ordered.forEach((el: HTMLElement) => container.appendChild(el));
+  }
+
+  let dragged: HTMLElement | null = null;
+
+  sections.forEach(section => {
+    const el = section as HTMLElement;
+    el.setAttribute('draggable', 'true');
+    el.style.cursor = 'grab';
+
+    el.addEventListener('dragstart', (e: DragEvent) => {
+      dragged = el;
+      el.style.opacity = '0.4';
+      e.dataTransfer?.setData('text/plain', '');
+    });
+
+    el.addEventListener('dragend', () => {
+      el.style.opacity = '1';
+      dragged = null;
+      const newOrder = Array.from(container.querySelectorAll('[data-section]')).map(s => s.getAttribute('data-section') as string);
+      localStorage.setItem('cmdb_dashboard_order', JSON.stringify(newOrder));
+    });
+
+    el.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
+      if (!dragged || dragged === el) return;
+      const rect = el.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (e.clientY < mid) {
+        el.parentNode?.insertBefore(dragged, el);
+      } else {
+        el.parentNode?.insertBefore(dragged, el.nextSibling);
+      }
+    });
+
+    el.addEventListener('drop', () => {
+      const newOrder = Array.from(container.querySelectorAll('[data-section]')).map(s => s.getAttribute('data-section') as string);
+      localStorage.setItem('cmdb_dashboard_order', JSON.stringify(newOrder));
+    });
   });
 }
 

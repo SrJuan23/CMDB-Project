@@ -16,7 +16,6 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import excelRoutes from './routes/excelRoutes';
 import historialRoutes from './routes/historialRoutes';
 import configRoutes from './routes/configRoutes';
-import ticketsRoutes from './routes/ticketsRoutes';
 
 dotenv.config();
 
@@ -56,7 +55,6 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/excel', excelRoutes);
 app.use('/api/historial', historialRoutes);
 app.use('/api/config', configRoutes);
-app.use('/api/tickets', ticketsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

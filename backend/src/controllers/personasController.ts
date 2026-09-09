@@ -129,6 +129,8 @@ export async function getPersonaActivos(req: AuthenticatedRequest, res: Response
     const enriched = activos.map(a => ({
       ...a,
       vigencia: calculateVigencia(a.fin_gestion),
+      dias_restantes: calculateVigencia(a.fin_gestion).dias_restantes,
+      estado_vigencia: calculateVigencia(a.fin_gestion).estado_vigencia,
       inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
       fin_gestion_formateada: formatDateSpanish(a.fin_gestion)
     }));

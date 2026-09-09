@@ -60,9 +60,9 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
   ];
 
   return `
-    <aside id="sidebar-container" class="bg-[#19255A] text-white flex flex-col transition-all duration-300 z-40 ${
+    <aside id="sidebar-container" class="bg-[#19255A] text-white flex flex-col transition-all duration-300 z-40 min-h-screen shrink-0 ${
       isCollapsed ? 'w-20' : 'w-64'
-    } min-h-screen shrink-0">
+    }">
       <!-- Logo Branding Header -->
       <div class="h-16 flex items-center gap-3 px-5 border-b border-[#3B4779]/60">
         <div class="w-10 h-10 rounded-xl bg-[#0945F7] text-white flex items-center justify-center font-bold text-lg shadow-md shrink-0 ring-2 ring-[#00CDE2]/40">
@@ -78,14 +78,6 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
             <p class="text-[10px] uppercase font-bold text-[#D7E2FF]/70 tracking-widest font-heading">Asset Management</p>
           </div>
         ` : ''}
-      </div>
-
-      <!-- Quick Action: Importar Excel -->
-      <div class="px-3 pt-4 pb-2">
-        <button id="sidebar-import-btn" class="w-full flex items-center ${isCollapsed ? 'justify-center p-3' : 'justify-start px-3 py-2.5 gap-3'} rounded-xl bg-gradient-to-r from-[#0945F7] to-[#5B53FF] hover:from-[#001F90] hover:to-[#0945F7] text-white font-heading font-semibold text-xs transition-all shadow-md shadow-[#0945F7]/30 hover:scale-[1.02]">
-          <svg class="w-4 h-4 text-[#00CDE2] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          ${!isCollapsed ? `<span>Importar Excel</span>` : ''}
-        </button>
       </div>
 
       <!-- Navigation Links -->

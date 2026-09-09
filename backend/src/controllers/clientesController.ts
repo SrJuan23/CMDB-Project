@@ -114,6 +114,8 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
       return {
         ...a,
         vigencia: vig,
+        dias_restantes: vig.dias_restantes,
+        estado_vigencia: vig.estado_vigencia,
         inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
         fin_gestion_formateada: formatDateSpanish(a.fin_gestion)
       };
@@ -189,6 +191,24 @@ export async function deleteCliente(req: AuthenticatedRequest, res: Response) {
 
     db.prepare('DELETE FROM clientes WHERE id = ?').run(id);
     return res.json({ message: 'Cliente eliminado con éxito' });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+export async function cambiarEstadoCliente(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const { nuevo_estado } = req.body;
+    if (!nuevo_estado || (nuevo_estado !== 'ACTIVO' && nuevo_estado !== 'INACTIVO')) {
+      return res.status(400).json({ error: 'Estado inválido. Debe ser ACTIVO o INACTIVO.' });
+    }
+    const cliente = db.prepare('SELECT id, nombre, estado FROM clientes WHERE id = ?').get(id) as any;
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    db.prepare('UPDATE clientes SET estado = ? WHERE id = ?').run(nuevo_estado, id);
+    return res.json({ message: `Cliente ${cliente.nombre} cambiado a ${nuevo_estado}`, nuevo_estado });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

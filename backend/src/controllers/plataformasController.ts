@@ -73,6 +73,8 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
     const enriched = activos.map(a => ({
       ...a,
       vigencia: calculateVigencia(a.fin_gestion),
+      dias_restantes: calculateVigencia(a.fin_gestion).dias_restantes,
+      estado_vigencia: calculateVigencia(a.fin_gestion).estado_vigencia,
       inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
       fin_gestion_formateada: formatDateSpanish(a.fin_gestion)
     }));
@@ -131,6 +133,24 @@ export async function deletePlataforma(req: AuthenticatedRequest, res: Response)
 
     db.prepare('DELETE FROM plataformas WHERE id = ?').run(id);
     return res.json({ message: 'Plataforma eliminada con éxito' });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+export async function cambiarEstadoPlataforma(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+    const { nuevo_estado } = req.body;
+    if (!nuevo_estado || (nuevo_estado !== 'ACTIVO' && nuevo_estado !== 'INACTIVO')) {
+      return res.status(400).json({ error: 'Estado inválido. Debe ser ACTIVO o INACTIVO.' });
+    }
+    const plataforma = db.prepare('SELECT id, nombre, estado FROM plataformas WHERE id = ?').get(id) as any;
+    if (!plataforma) {
+      return res.status(404).json({ error: 'Plataforma no encontrada' });
+    }
+    db.prepare('UPDATE plataformas SET estado = ? WHERE id = ?').run(nuevo_estado, id);
+    return res.json({ message: `Plataforma ${plataforma.nombre} cambiada a ${nuevo_estado}`, nuevo_estado });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

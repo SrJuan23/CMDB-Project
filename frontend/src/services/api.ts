@@ -162,6 +162,13 @@ export const api = {
     });
   },
 
+  async cambiarEstadoCliente(id: number | string, nuevo_estado: 'ACTIVO' | 'INACTIVO'): Promise<any> {
+    return request(`/clientes/${id}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ nuevo_estado })
+    });
+  },
+
   // Plataformas
   async getPlataformas(): Promise<Plataforma[]> {
     return request('/plataformas');
@@ -188,6 +195,13 @@ export const api = {
   async deletePlataforma(id: number | string): Promise<any> {
     return request(`/plataformas/${id}`, {
       method: 'DELETE'
+    });
+  },
+
+  async cambiarEstadoPlataforma(id: number | string, nuevo_estado: 'ACTIVO' | 'INACTIVO'): Promise<any> {
+    return request(`/plataformas/${id}/estado`, {
+      method: 'PATCH',
+      body: JSON.stringify({ nuevo_estado })
     });
   },
 
@@ -276,18 +290,6 @@ export const api = {
   async updateConfig(data: Record<string, any>): Promise<any> {
     return request('/config', {
       method: 'PUT',
-      body: JSON.stringify(data)
-    });
-  },
-
-  // Tickets
-  async getTicketsByActivo(activoId: number | string): Promise<any[]> {
-    return request(`/tickets/activo/${activoId}`);
-  },
-
-  async createTicket(data: { activo_id: number; ticket_codigo: string; titulo: string; estado?: string; prioridad?: string }): Promise<any> {
-    return request('/tickets', {
-      method: 'POST',
       body: JSON.stringify(data)
     });
   }

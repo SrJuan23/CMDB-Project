@@ -287,6 +287,8 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
       tickets_relacionados: tickets,
       historial,
       vigencia,
+      dias_restantes: vigencia.dias_restantes,
+      estado_vigencia: vigencia.estado_vigencia,
       inicio_gestion_formateada: formatDateSpanish(activo.inicio_gestion),
       fin_gestion_formateada: formatDateSpanish(activo.fin_gestion)
     });
