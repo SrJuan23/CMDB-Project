@@ -1207,6 +1207,27 @@ function setupGlobalListeners() {
       }
       return;
     }
+    if (btn.hasAttribute('data-move-section')) {
+      const sectionId = btn.getAttribute('data-move-section');
+      const direction = btn.getAttribute('data-direction');
+      if (sectionId && direction) {
+        const order = getSavedOrder();
+        const idx = order.indexOf(sectionId as any);
+        if (idx !== -1) {
+          const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+          if (newIdx >= 0 && newIdx < order.length) {
+            const temp = order[idx];
+            order[idx] = order[newIdx];
+            order[newIdx] = temp;
+            saveOrder(order);
+            renderApp();
+            setupGlobalListeners();
+            initDashboardSortable();
+          }
+        }
+      }
+      return;
+    }
 
     // Filter Estado Tabs
     if (btn.hasAttribute('data-filter-estado')) {
@@ -1448,59 +1469,7 @@ function setupGlobalListeners() {
 }
 
 function initDashboardSortable() {
-  const container = document.querySelector('main #main-content > div');
-  if (!container) return;
-
-  const sections = Array.from(container.querySelectorAll('[data-section]'));
-  if (sections.length === 0) return;
-
-  const savedOrder = localStorage.getItem('cmdb_dashboard_order');
-  const defaultOrder = sections.map(s => s.getAttribute('data-section') as string);
-  const targetOrder = savedOrder ? JSON.parse(savedOrder) : defaultOrder;
-
-  if (savedOrder) {
-    const map = new Map(sections.map(s => [s.getAttribute('data-section'), s]));
-    const ordered = targetOrder.map((key: string) => map.get(key)).filter((el: HTMLElement | undefined): el is HTMLElement => Boolean(el));
-    ordered.forEach((el: HTMLElement) => container.appendChild(el));
-  }
-
-  let dragged: HTMLElement | null = null;
-
-  sections.forEach(section => {
-    const el = section as HTMLElement;
-    el.setAttribute('draggable', 'true');
-    el.style.cursor = 'grab';
-
-    el.addEventListener('dragstart', (e: DragEvent) => {
-      dragged = el;
-      el.style.opacity = '0.4';
-      e.dataTransfer?.setData('text/plain', '');
-    });
-
-    el.addEventListener('dragend', () => {
-      el.style.opacity = '1';
-      dragged = null;
-      const newOrder = Array.from(container.querySelectorAll('[data-section]')).map(s => s.getAttribute('data-section') as string);
-      localStorage.setItem('cmdb_dashboard_order', JSON.stringify(newOrder));
-    });
-
-    el.addEventListener('dragover', (e: DragEvent) => {
-      e.preventDefault();
-      if (!dragged || dragged === el) return;
-      const rect = el.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      if (e.clientY < mid) {
-        el.parentNode?.insertBefore(dragged, el);
-      } else {
-        el.parentNode?.insertBefore(dragged, el.nextSibling);
-      }
-    });
-
-    el.addEventListener('drop', () => {
-      const newOrder = Array.from(container.querySelectorAll('[data-section]')).map(s => s.getAttribute('data-section') as string);
-      localStorage.setItem('cmdb_dashboard_order', JSON.stringify(newOrder));
-    });
-  });
+  // No-op: sorting is handled by move buttons via data-move-section
 }
 
 document.addEventListener('DOMContentLoaded', init);

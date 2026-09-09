@@ -312,22 +312,29 @@ export function renderDashboardView(stats: DashboardStats, isEditing = false, vi
       ${isEditing ? `
         <div class="cmdb-card p-4 bg-amber-50 border-amber-200">
           <p class="text-xs text-amber-800 font-body">
-            <strong>Modo edición activo.</strong> Arrastra las secciones para reordenarlas. Usa los botones de eliminar en cada sección o el selector para agregar nuevas. Los cambios se guardan automáticamente.
+            <strong>Modo edición activo.</strong> Usa los botones de arriba/abajo en cada sección para reordenarla. También puedes eliminar secciones o agregar nuevas desde el selector. Los cambios se guardan automáticamente.
           </p>
         </div>
         ${addButton}
       ` : ''}
 
       <div id="dashboard-sections" class="space-y-6">
-        ${sorted.length === 0 ? `<div class="text-center py-12 text-slate-400 font-body">No hay secciones visibles. Usa el modo edición para agregar secciones.</div>` : sorted.map(s => `
-          <div data-section="${s!.id}" class="${isEditing ? 'relative group' : ''}">
+        ${sorted.length === 0 ? `<div class="text-center py-12 text-slate-400 font-body">No hay secciones visibles. Usa el modo edición para agregar secciones.</div>` : sorted.map((s, idx) => `
+          <div data-section="${s!.id}" class="${isEditing ? 'relative' : ''}">
             ${isEditing ? `
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 text-slate-400 cursor-grab" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
                   <span class="text-xs font-bold text-slate-600 font-heading uppercase">${sectionHeaders[s!.id] || s!.id}</span>
                 </div>
-                <button data-remove-section="${s!.id}" class="text-xs text-rose-600 hover:text-rose-700 font-semibold font-heading">Eliminar sección</button>
+                <div class="flex items-center gap-1">
+                  <button data-move-section="${s!.id}" data-direction="up" ${idx === 0 ? 'disabled' : ''} class="p-1.5 text-slate-400 hover:text-[#0945F7] hover:bg-[#EDF0FF] rounded-lg transition disabled:opacity-30" title="Mover arriba">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                  </button>
+                  <button data-move-section="${s!.id}" data-direction="down" ${idx === sorted.length - 1 ? 'disabled' : ''} class="p-1.5 text-slate-400 hover:text-[#0945F7] hover:bg-[#EDF0FF] rounded-lg transition disabled:opacity-30" title="Mover abajo">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                  </button>
+                  <button data-remove-section="${s!.id}" class="text-xs text-rose-600 hover:text-rose-700 font-semibold font-heading ml-2">Eliminar</button>
+                </div>
               </div>
             ` : ''}
             ${s!.html}
