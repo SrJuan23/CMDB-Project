@@ -1,0 +1,107 @@
+-- TTECH CMDB - MySQL Schema DDL
+-- Compatible with MySQL 8.0+ / MariaDB 10.5+
+
+CREATE DATABASE IF NOT EXISTS cmdb_ttech CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE cmdb_ttech;
+
+CREATE TABLE IF NOT EXISTS usuarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(150) NOT NULL,
+  email VARCHAR(150) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  rol ENUM('ADMIN', 'GESTOR', 'CONSULTA') NOT NULL DEFAULT 'GESTOR',
+  estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS clientes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(200) UNIQUE NOT NULL,
+  contacto VARCHAR(200) NULL,
+  estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS plataformas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(150) UNIQUE NOT NULL,
+  descripcion TEXT NULL,
+  estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS personas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(150) UNIQUE NOT NULL,
+  email VARCHAR(150) NULL,
+  tipo ENUM('LIDER', 'ADMINISTRADOR', 'AMBOS') NOT NULL DEFAULT 'AMBOS',
+  estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS activos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  codigo VARCHAR(20) UNIQUE NOT NULL,
+  cliente_id INT NOT NULL,
+  hostname VARCHAR(200) NOT NULL,
+  serial_number VARCHAR(150) NOT NULL,
+  plataforma_id INT NOT NULL,
+  ip_url_gestion TEXT NOT NULL,
+  lider_id INT NULL,
+  cogestion ENUM('SI', 'NO') NOT NULL DEFAULT 'NO',
+  inicio_gestion DATE NULL,
+  fin_gestion DATE NULL,
+  correo_soporte VARCHAR(200) NULL,
+  soporte_n1 ENUM('SI', 'NO') NOT NULL DEFAULT 'NO',
+  pep VARCHAR(100) NULL,
+  estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE,
+  FOREIGN KEY (plataforma_id) REFERENCES plataformas(id) ON UPDATE CASCADE,
+  FOREIGN KEY (lider_id) REFERENCES personas(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  INDEX idx_activos_estado (estado),
+  INDEX idx_activos_cliente (cliente_id),
+  INDEX idx_activos_plataforma (plataforma_id),
+  INDEX idx_activos_lider (lider_id),
+  INDEX idx_activos_serial (serial_number),
+  INDEX idx_activos_fin_gestion (fin_gestion)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS activo_administrador (
+  activo_id INT NOT NULL,
+  persona_id INT NOT NULL,
+  PRIMARY KEY (activo_id, persona_id),
+  FOREIGN KEY (activo_id) REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (persona_id) REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS historial_activo (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  activo_id INT NOT NULL,
+  usuario_id INT NULL,
+  usuario_nombre VARCHAR(150) NOT NULL,
+  campo VARCHAR(100) NOT NULL,
+  valor_anterior TEXT NULL,
+  valor_nuevo TEXT NULL,
+  fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (activo_id) REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  INDEX idx_historial_activo (activo_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS configuracion (
+  clave VARCHAR(50) PRIMARY KEY,
+  valor TEXT NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS tickets_relacionados (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  activo_id INT NOT NULL,
+  ticket_codigo VARCHAR(50) NOT NULL,
+  titulo VARCHAR(255) NOT NULL,
+  estado VARCHAR(50) NOT NULL DEFAULT 'ABIERTO',
+  prioridad VARCHAR(50) DEFAULT 'MEDIA',
+  fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (activo_id) REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
