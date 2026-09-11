@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build && npm prune --omit=dev && cp src/db/postgres-schema.sql dist/db/postgres-schema.sql"
+buildCommand = "cd backend && NODE_ENV=development npm install && npx tsc && NODE_ENV=production npm prune --omit=dev"
 
 [deploy]
 startCommand = "cd backend && npm run start"
