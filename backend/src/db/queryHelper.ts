@@ -24,7 +24,8 @@ export function normalizeSql(sql: string): string {
 
 export function replacePlaceholders(sql: string): string {
   if (isPostgres()) {
-    return sql.replace(/\?/g, (_, i) => `$${i + 1}`);
+    let counter = 0;
+    return sql.replace(/\?/g, () => `$${++counter}`);
   }
   return sql;
 }
@@ -76,13 +77,23 @@ export async function run(sql: string, params: any[] = []): Promise<any> {
   const normalizedSql = normalizeSql(sql);
   
   if (isPostgres()) {
-    const pgSql = replacePlaceholders(normalizedSql);
+    let pgSql = replacePlaceholders(normalizedSql);
+    const trimmed = pgSql.trim().toUpperCase();
+    
+    if (trimmed.startsWith('INSERT') && !trimmed.includes('RETURNING')) {
+      pgSql = pgSql.replace(/;?\s*$/, '') + ' RETURNING id';
+    }
+    
     const result = await (db as Pool).query(pgSql, params);
+    const row = result.rows?.[0];
+    
+    if (row && row.id != null) {
+      return { lastInsertRowid: Number(row.id), changes: result.rowCount };
+    }
     return { lastInsertRowid: result.oid ? Number(result.oid) : result.rowCount, changes: result.rowCount };
   } else {
     const stmt = (db as Database.Database).prepare(normalizedSql);
-    const result = stmt.run(...params);
-    return result;
+    return stmt.run(...params);
   }
 }
 
