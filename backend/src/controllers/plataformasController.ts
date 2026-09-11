@@ -56,17 +56,13 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
 
     const activos = await getAll(`
       SELECT 
-        a.*,
-        c.nombre AS cliente_nombre,
-        l.nombre AS lider_nombre,
-        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
+        a.id, a.codigo, a.hostname, a.serial_number, a.ip_url_gestion, a.generacion_actas,
+        a.pet, a.nombre_proyecto, a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
+        c.nombre AS cliente_nombre
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
-      LEFT JOIN personas l ON a.lider_id = l.id
-      LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-      LEFT JOIN personas adm ON aa.persona_id = adm.id
       WHERE a.plataforma_id = ?
-      GROUP BY a.id
       ORDER BY a.estado ASC, a.hostname ASC
     `, [id]);
 
@@ -76,7 +72,8 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
       dias_restantes: calculateVigencia(a.fin_gestion).dias_restantes,
       estado_vigencia: calculateVigencia(a.fin_gestion).estado_vigencia,
       inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
-      fin_gestion_formateada: formatDateSpanish(a.fin_gestion)
+      fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
+      generacion_actas_formateada: formatDateSpanish(a.generacion_actas)
     }));
 
     return res.json({ plataforma, activos: enriched });

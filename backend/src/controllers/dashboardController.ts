@@ -11,18 +11,12 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
     const allActivos = await getAll(`
       SELECT 
         a.id, a.codigo, a.hostname, a.serial_number, a.estado, a.fin_gestion,
-        a.cogestion, a.soporte_n1, a.cliente_id, a.plataforma_id, a.lider_id,
+        a.cogestion, a.soporte_n1, a.cliente_id, a.plataforma_id,
         c.nombre AS cliente_nombre,
-        p.nombre AS plataforma_nombre,
-        l.nombre AS lider_nombre,
-        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
+        p.nombre AS plataforma_nombre
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
-      LEFT JOIN personas l ON a.lider_id = l.id
-      LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-      LEFT JOIN personas adm ON aa.persona_id = adm.id
-      GROUP BY a.id
     `);
 
     const totalClientesRow = await getOne('SELECT COUNT(*) as count FROM clientes');
@@ -43,8 +37,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
 
     const plataformaCounts = new Map<string, number>();
     const clienteCounts = new Map<string, number>();
-    const liderCounts = new Map<string, number>();
-    const adminCounts = new Map<string, number>();
 
     let cogestionSi = 0;
     let cogestionNo = 0;
@@ -72,16 +64,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
         clienteCounts.set(a.cliente_nombre, (clienteCounts.get(a.cliente_nombre) || 0) + 1);
       }
 
-      const lider = a.lider_nombre || 'Sin asignar';
-      liderCounts.set(lider, (liderCounts.get(lider) || 0) + 1);
-
-      if (a.administradores_nombres) {
-        a.administradores_nombres.split(',').forEach((name: string) => {
-          const admClean = name.trim();
-          adminCounts.set(admClean, (adminCounts.get(admClean) || 0) + 1);
-        });
-      }
-
       const vig = calculateVigencia(a.fin_gestion, threshold);
       if (vig.estado_vigencia === 'VIGENTE') vigentesCount++;
       else if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximosCount++;
@@ -104,8 +86,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
             serial_number: a.serial_number,
             cliente_nombre: a.cliente_nombre,
             plataforma_nombre: a.plataforma_nombre,
-            lider_nombre: a.lider_nombre || 'Sin asignar',
-            administradores_str: a.administradores_nombres || 'Sin asignar',
             fin_gestion: a.fin_gestion,
             fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
             dias_restantes: vig.dias_restantes,
@@ -124,14 +104,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
       .slice(0, 8);
 
     const sortedClientes = Array.from(clienteCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
-
-    const sortedLideres = Array.from(liderCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-
-    const sortedAdmins = Array.from(adminCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
 
@@ -170,14 +142,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
         vigencias: {
           labels: ['VIGENTE', 'PRÓXIMO A VENCER', 'VENCIDO'],
           data: [vigentesCount, proximosCount, vencidosCount]
-        },
-        lideres: {
-          labels: sortedLideres.map(l => l[0]),
-          data: sortedLideres.map(l => l[1])
-        },
-        administradores: {
-          labels: sortedAdmins.map(adm => adm[0]),
-          data: sortedAdmins.map(adm => adm[1])
         },
         cogestion: {
           labels: ['SI', 'NO'],

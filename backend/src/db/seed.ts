@@ -74,34 +74,27 @@ export async function runSeed() {
       await run('INSERT INTO plataformas (nombre, estado) VALUES (?, ?)', [p, 'ACTIVO']);
     }
 
-    const lideres = ['Harold Carretero', 'Carlos Mendoza', 'Diana Valencia'];
-    for (const l of lideres) {
-      await run('INSERT INTO personas (nombre, tipo, estado) VALUES (?, ?, ?)', [l, 'LIDER', 'ACTIVO']);
-    }
-
-    const admins = ['Juan Cadavid', 'Diego Gomez Herrera', 'William Parra', 'Natalia Ruiz'];
-    for (const a of admins) {
-      await run('INSERT INTO personas (nombre, tipo, estado) VALUES (?, ?, ?)', [a, 'ADMINISTRADOR', 'ACTIVO']);
-    }
-
     const sampleAssets = [
-      { codigo: 'ACT-000001', cliente_id: 1, hostname: 'FortiEDR MSSP', serial_number: 'FEDRPOTA25000025', plataforma_id: 1, ip_url_gestion: 'https://telefonicacolombia.fortiedr.com/login?logout', lider_id: 1, cogestion: 'NO', inicio_gestion: '2024-04-24', fin_gestion: '2026-04-23', correo_soporte: 'te_soporte_seguridad@telefonica.com', soporte_n1: 'NO', estado: 'ACTIVO' },
-      { codigo: 'ACT-000002', cliente_id: 9, hostname: 'FortiMail MSSP', serial_number: 'FEVMSPM000237464', plataforma_id: 2, ip_url_gestion: 'https://www.fortimailcloud.com/user/', lider_id: 1, cogestion: 'NO', inicio_gestion: '2024-07-25', fin_gestion: '2025-07-24', correo_soporte: 'soporte.tech@telefonica.com', soporte_n1: 'SI', estado: 'INACTIVO' },
-      { codigo: 'ACT-000003', cliente_id: 12, hostname: 'OSW3-W', serial_number: '25534', plataforma_id: 3, ip_url_gestion: '10.120.45.12', lider_id: 2, cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-20', correo_soporte: null, soporte_n1: 'SI', estado: 'ACTIVO' },
-      { codigo: 'ACT-000004', cliente_id: 12, hostname: 'UNIDAD ALIMENTACIÓN', serial_number: '24402', plataforma_id: 3, ip_url_gestion: '10.120.45.13', lider_id: 2, cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-08', correo_soporte: null, soporte_n1: 'SI', estado: 'ACTIVO' },
-      { codigo: 'ACT-000005', cliente_id: 4, hostname: 'UNIDAD DE AIREACIÓN', serial_number: '22378', plataforma_id: 3, ip_url_gestion: 'N/A', lider_id: 1, cogestion: 'NO', inicio_gestion: '2023-11-01', fin_gestion: '2026-08-15', correo_soporte: null, soporte_n1: 'NO', estado: 'ACTIVO' }
+      { codigo: 'ACT-000001', cliente_id: 1, hostname: 'FortiEDR MSSP', serial_number: 'FEDRPOTA25000025', plataforma_id: 1, ip_url_gestion: 'https://telefonicacolombia.fortiedr.com/login?logout', generacion_actas: '2025-06-30', pet: 'PET-001', nombre_proyecto: 'FortiEDR MSSP', cogestion: 'NO', inicio_gestion: '2024-04-24', fin_gestion: '2026-04-23', correo_soporte: 'te_soporte_seguridad@telefonica.com', soporte_n1: 'NO', pep: 'TE-FW-001', estado: 'ACTIVO' },
+      { codigo: 'ACT-000002', cliente_id: 9, hostname: 'FortiMail MSSP', serial_number: 'FEVMSPM000237464', plataforma_id: 2, ip_url_gestion: 'https://www.fortimailcloud.com/user/', generacion_actas: '2025-09-01', pet: 'PET-002', nombre_proyecto: 'Mail Security', cogestion: 'NO', inicio_gestion: '2024-07-25', fin_gestion: '2025-07-24', correo_soporte: 'soporte.tech@telefonica.com', soporte_n1: 'SI', pep: 'TE-MAIL-001', estado: 'INACTIVO' },
+      { codigo: 'ACT-000003', cliente_id: 12, hostname: 'OSW3-W', serial_number: '25534', plataforma_id: 3, ip_url_gestion: '10.120.45.12', generacion_actas: '2026-01-01', pet: 'PET-003', nombre_proyecto: 'OSW3-W', cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-20', correo_soporte: null, soporte_n1: 'SI', pep: 'CO-INFRA-01', estado: 'ACTIVO' },
+      { codigo: 'ACT-000004', cliente_id: 12, hostname: 'UNIDAD ALIMENTACIÓN', serial_number: '24402', plataforma_id: 3, ip_url_gestion: '10.120.45.13', generacion_actas: '2026-01-01', pet: 'PET-003', nombre_proyecto: 'OSW3-W', cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-08', correo_soporte: null, soporte_n1: 'SI', pep: 'CO-INFRA-01', estado: 'ACTIVO' },
+      { codigo: 'ACT-000005', cliente_id: 4, hostname: 'UNIDAD DE AIREACIÓN', serial_number: '22378', plataforma_id: 3, ip_url_gestion: 'N/A', generacion_actas: null, pet: 'PET-004', nombre_proyecto: 'AC-001', cogestion: 'NO', inicio_gestion: '2023-11-01', fin_gestion: '2026-08-15', correo_soporte: null, soporte_n1: 'NO', pep: 'CO-INFRA-02', estado: 'ACTIVO' }
     ];
 
     for (const asset of sampleAssets) {
       await run(`
         INSERT INTO activos (
           codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-          lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1, estado, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          generacion_actas, pet, nombre_proyecto,
+          cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+          pep, estado, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
         asset.codigo, asset.cliente_id, asset.hostname, asset.serial_number, asset.plataforma_id,
-        asset.ip_url_gestion, asset.lider_id, asset.cogestion, asset.inicio_gestion, asset.fin_gestion,
-        asset.correo_soporte, asset.soporte_n1, asset.estado
+        asset.ip_url_gestion, asset.generacion_actas, asset.pet, asset.nombre_proyecto,
+        asset.cogestion, asset.inicio_gestion, asset.fin_gestion,
+        asset.correo_soporte, asset.soporte_n1, asset.pep, asset.estado
       ]);
     }
   }

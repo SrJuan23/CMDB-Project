@@ -1,6 +1,6 @@
 -- TTECH CMDB - PostgreSQL Schema
--- Ejecutar contra la base de datos ya creada:
--- psql "$DATABASE_URL" -f postgres-schema.sql
+-- Schema is auto-created by initDatabase() in database.ts
+-- This file is kept for reference/manual setup
 
 CREATE TABLE IF NOT EXISTS usuarios (
   id SERIAL PRIMARY KEY,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 CREATE TABLE IF NOT EXISTS clientes (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(200) UNIQUE NOT NULL,
-  contacto VARCHAR(200) NULL,
+  contacto VARCHAR(200),
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -24,16 +24,7 @@ CREATE TABLE IF NOT EXISTS plataformas (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(150) UNIQUE NOT NULL,
   sku VARCHAR(100) UNIQUE,
-  descripcion TEXT NULL,
-  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS personas (
-  id SERIAL PRIMARY KEY,
-  nombre VARCHAR(150) UNIQUE NOT NULL,
-  email VARCHAR(150) NULL,
-  tipo VARCHAR(20) NOT NULL DEFAULT 'AMBOS',
+  descripcion TEXT,
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,32 +37,28 @@ CREATE TABLE IF NOT EXISTS activos (
   serial_number VARCHAR(150) NOT NULL,
   plataforma_id INTEGER NOT NULL REFERENCES plataformas(id) ON UPDATE CASCADE,
   ip_url_gestion TEXT NOT NULL,
-  lider_id INTEGER NULL REFERENCES personas(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  generacion_actas DATE,
+  pet VARCHAR(100),
+  nombre_proyecto VARCHAR(200),
   cogestion VARCHAR(2) NOT NULL DEFAULT 'NO',
-  inicio_gestion DATE NULL,
-  fin_gestion DATE NULL,
-  correo_soporte VARCHAR(200) NULL,
+  inicio_gestion DATE,
+  fin_gestion DATE,
+  correo_soporte VARCHAR(200),
   soporte_n1 VARCHAR(2) NOT NULL DEFAULT 'NO',
-  pep VARCHAR(100) NULL,
+  pep VARCHAR(100),
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS activo_administrador (
-  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  PRIMARY KEY (activo_id, persona_id)
-);
-
 CREATE TABLE IF NOT EXISTS historial_activo (
   id SERIAL PRIMARY KEY,
   activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  usuario_id INTEGER NULL REFERENCES usuarios(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL ON UPDATE CASCADE,
   usuario_nombre VARCHAR(150) NOT NULL,
   campo VARCHAR(100) NOT NULL,
-  valor_anterior TEXT NULL,
-  valor_nuevo TEXT NULL,
+  valor_anterior TEXT,
+  valor_nuevo TEXT,
   fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -93,21 +80,7 @@ CREATE TABLE IF NOT EXISTS tickets_relacionados (
 CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
 CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
-CREATE INDEX IF NOT EXISTS idx_activos_lider ON activos(lider_id);
 CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
 CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
 CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = CURRENT_TIMESTAMP;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS update_activos_timestamp ON activos;
-CREATE TRIGGER update_activos_timestamp
-  BEFORE UPDATE ON activos
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku);

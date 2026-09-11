@@ -34,15 +34,6 @@ CREATE TABLE IF NOT EXISTS plataformas (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS personas (
-  id SERIAL PRIMARY KEY,
-  nombre VARCHAR(150) UNIQUE NOT NULL,
-  email VARCHAR(150),
-  tipo VARCHAR(20) NOT NULL DEFAULT 'AMBOS',
-  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS activos (
   id SERIAL PRIMARY KEY,
   codigo VARCHAR(20) UNIQUE NOT NULL,
@@ -51,7 +42,9 @@ CREATE TABLE IF NOT EXISTS activos (
   serial_number VARCHAR(150) NOT NULL,
   plataforma_id INTEGER NOT NULL REFERENCES plataformas(id) ON UPDATE CASCADE,
   ip_url_gestion TEXT NOT NULL,
-  lider_id INTEGER REFERENCES personas(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  generacion_actas DATE,
+  pet VARCHAR(100),
+  nombre_proyecto VARCHAR(200),
   cogestion VARCHAR(2) NOT NULL DEFAULT 'NO',
   inicio_gestion DATE,
   fin_gestion DATE,
@@ -61,12 +54,6 @@ CREATE TABLE IF NOT EXISTS activos (
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS activo_administrador (
-  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  PRIMARY KEY (activo_id, persona_id)
 );
 
 CREATE TABLE IF NOT EXISTS historial_activo (
@@ -98,7 +85,6 @@ CREATE TABLE IF NOT EXISTS tickets_relacionados (
 CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
 CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
-CREATE INDEX IF NOT EXISTS idx_activos_lider ON activos(lider_id);
 CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
 CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
 CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
@@ -147,15 +133,6 @@ export async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS personas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT UNIQUE COLLATE NOCASE NOT NULL,
-      email TEXT,
-      tipo TEXT NOT NULL DEFAULT 'AMBOS',
-      estado TEXT NOT NULL DEFAULT 'ACTIVO',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
     CREATE TABLE IF NOT EXISTS activos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       codigo TEXT UNIQUE NOT NULL,
@@ -164,7 +141,9 @@ export async function initDatabase() {
       serial_number TEXT NOT NULL,
       plataforma_id INTEGER NOT NULL REFERENCES plataformas(id),
       ip_url_gestion TEXT NOT NULL,
-      lider_id INTEGER REFERENCES personas(id),
+      generacion_actas TEXT,
+      pet TEXT,
+      nombre_proyecto TEXT,
       cogestion TEXT NOT NULL DEFAULT 'NO',
       inicio_gestion TEXT,
       fin_gestion TEXT,
@@ -174,12 +153,6 @@ export async function initDatabase() {
       estado TEXT NOT NULL DEFAULT 'ACTIVO',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS activo_administrador (
-      activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE,
-      persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
-      PRIMARY KEY (activo_id, persona_id)
     );
 
     CREATE TABLE IF NOT EXISTS historial_activo (
@@ -211,7 +184,6 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
     CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
     CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
-    CREATE INDEX IF NOT EXISTS idx_activos_lider ON activos(lider_id);
     CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
     CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
     CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
@@ -230,16 +202,5 @@ export async function initDatabase() {
   if (!checkConfig || checkConfig.count === 0) {
     await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
     await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
-  }
-
-  try {
-    const cols = db.pragma('table_info(plataformas)') as any[];
-    const hasSku = cols.some((col: any) => col.name === 'sku');
-    if (!hasSku) {
-      db.exec('ALTER TABLE plataformas ADD COLUMN sku TEXT');
-      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku)');
-    }
-  } catch (err) {
-    console.error('Error en migracion sku:', err);
   }
 }

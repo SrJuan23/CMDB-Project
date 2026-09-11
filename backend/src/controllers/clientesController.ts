@@ -64,17 +64,15 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
 
     const activos = await getAll(`
       SELECT 
-        a.*,
+        a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
+        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
+        a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         p.nombre AS plataforma_nombre,
-        l.nombre AS lider_nombre,
-        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
+        p.sku AS plataforma_sku
       FROM activos a
       JOIN plataformas p ON a.plataforma_id = p.id
-      LEFT JOIN personas l ON a.lider_id = l.id
-      LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-      LEFT JOIN personas adm ON aa.persona_id = adm.id
       WHERE a.cliente_id = ?
-      GROUP BY a.id
       ORDER BY a.estado ASC, a.hostname ASC
     `, [cliente.id]);
 
@@ -85,7 +83,6 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
     let vigentesCount = 0;
 
     const plataformasMap = new Map<string, number>();
-    const administradoresMap = new Map<string, number>();
 
     const enrichedActivos = activos.map(a => {
       const vig = calculateVigencia(a.fin_gestion, threshold);
@@ -100,25 +97,18 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
         plataformasMap.set(a.plataforma_nombre, (plataformasMap.get(a.plataforma_nombre) || 0) + 1);
       }
 
-      if (a.administradores_nombres) {
-        a.administradores_nombres.split(',').forEach((name: string) => {
-          const clean = name.trim();
-          administradoresMap.set(clean, (administradoresMap.get(clean) || 0) + 1);
-        });
-      }
-
       return {
         ...a,
         vigencia: vig,
         dias_restantes: vig.dias_restantes,
         estado_vigencia: vig.estado_vigencia,
         inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
-        fin_gestion_formateada: formatDateSpanish(a.fin_gestion)
+        fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
+        generacion_actas_formateada: formatDateSpanish(a.generacion_actas)
       };
     });
 
     const plataformas = Array.from(plataformasMap.entries()).map(([nombre, cantidad]) => ({ nombre, cantidad }));
-    const administradores = Array.from(administradoresMap.entries()).map(([nombre, cantidad]) => ({ nombre, cantidad }));
 
     return res.json({
       cliente,
@@ -131,7 +121,6 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
         vencidos: vencidosCount
       },
       plataformas_utilizadas: plataformas,
-      administradores,
       activos: enrichedActivos
     });
   } catch (error: any) {

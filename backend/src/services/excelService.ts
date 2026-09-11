@@ -8,8 +8,9 @@ export interface ExcelRowParsed {
   serial_number: string;
   plataforma: string;
   ip_url_gestion: string;
-  lider: string;
-  administradores: string[];
+  generacion_actas: string | null;
+  pet: string;
+  nombre_proyecto: string;
   cogestion: string;
   soporte_n1: string;
   correo_soporte: string;
@@ -40,13 +41,6 @@ function cleanString(val: any): string {
   return String(val).replace(/\s+/g, ' ').trim();
 }
 
-function parseAdmins(val: any): string[] {
-  if (!val) return [];
-  const str = String(val).replace(/\s+/g, ' ').trim();
-  if (!str || str.toUpperCase() === 'N/A') return [];
-  return str.split(/[,;/]+/).map(s => s.replace(/\s+/g, ' ').trim()).filter(s => s.length > 0);
-}
-
 export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewResult> {
   const wb = xlsx.read(buffer, { type: 'buffer' });
   const rowsParsed: ExcelRowParsed[] = [];
@@ -68,9 +62,7 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
   const seenInExcel = new Set<string>();
 
   wb.SheetNames.forEach(sheetName => {
-    const isActivoSheet = sheetName.toUpperCase().includes('ACTIVO') && !sheetName.toUpperCase().includes('INACTIVO');
     const isInactivoSheet = sheetName.toUpperCase().includes('INACTIVO');
-    
     const defaultEstado: 'ACTIVO' | 'INACTIVO' = isInactivoSheet ? 'INACTIVO' : 'ACTIVO';
 
     const ws = wb.Sheets[sheetName];
@@ -97,10 +89,10 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
       const plataforma = cleanString(getVal(['Platform', 'Plataforma', 'Tecnologia']));
       const ipUrl = cleanString(getVal(['IP/Url Gestión', 'IP/URL Gestion', 'IP', 'URL', 'Gestion']));
       const correo = cleanString(getVal(['Correo Perteneciente', 'Correo Soporte', 'Email', 'Correo']));
-      const lider = cleanString(getVal(['Lider', 'Líder', 'Responsable']));
-      const adminsRaw = getVal(['Administrador(s)', 'Administrador', 'Administradores']);
-      const admins = parseAdmins(adminsRaw);
-      
+      const generacionActas = getVal(['Generación Actas', 'Generacion Actas', 'Fecha Generación Actas']);
+      const pet = cleanString(getVal(['PET', 'Pet']));
+      const nombreProyecto = cleanString(getVal(['Nombre del Proyecto', 'Project Name', 'Proyecto']));
+
       let cogestion = cleanString(getVal(['Cogestión', 'Cogestion'])).toUpperCase();
       if (cogestion !== 'SI' && cogestion !== 'NO') {
         cogestion = cogestion.includes('S') ? 'SI' : 'NO';
@@ -149,8 +141,9 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
         serial_number: serial || 'S/N',
         plataforma: plataforma || 'GENERAL',
         ip_url_gestion: ipUrl || 'N/A',
-        lider: lider || 'Sin asignar',
-        administradores: admins,
+        generacion_actas: generacionActas ? parseExcelDate(generacionActas) : null,
+        pet: pet,
+        nombre_proyecto: nombreProyecto,
         cogestion,
         soporte_n1: soporteN1,
         correo_soporte: correo,
@@ -173,7 +166,7 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
   });
 
   const total = rowsParsed.length;
-  const activosHoja = rowsParsed.filter(r => r.sheet_name.toUpperCase().includes('ACTIVO') && !r.sheet_name.toUpperCase().includes('INACTIVO')).length;
+  const activosHoja = rowsParsed.filter(r => !r.sheet_name.toUpperCase().includes('INACTIVO')).length;
   const inactivosHoja = rowsParsed.filter(r => r.sheet_name.toUpperCase().includes('INACTIVO')).length;
   const duplicates = rowsParsed.filter(r => r.is_duplicate).length;
 
@@ -224,27 +217,6 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
     }
   };
 
-  const getOrCreatePersona = async (nombre: string, tipo: 'LIDER' | 'ADMINISTRADOR' | 'AMBOS'): Promise<number> => {
-    const clean = cleanString(nombre);
-    let row = await getOne('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
-    if (row) {
-      if (row.tipo !== 'AMBOS' && row.tipo !== tipo) {
-        await run('UPDATE personas SET tipo = ? WHERE id = ?', ['AMBOS', row.id]);
-      }
-      return row.id;
-    }
-    try {
-      const res = await run('INSERT INTO personas (nombre, tipo, estado) VALUES (?, ?, ?)', [clean, tipo, 'ACTIVO']);
-      return res.lastInsertRowid;
-    } catch {
-      const found = await getOne('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
-      if (found!.tipo !== 'AMBOS' && found!.tipo !== tipo) {
-        await run('UPDATE personas SET tipo = ? WHERE id = ?', ['AMBOS', found!.id]);
-      }
-      return found!.id;
-    }
-  };
-
   const getLastCodeNum = async (): Promise<number> => {
     const row = await getOne("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS INTEGER)) as max_num FROM activos WHERE codigo LIKE 'ACT-%'");
     return row?.max_num || 0;
@@ -257,10 +229,6 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
       try {
         const clienteId = await getOrCreateCliente(row.cliente);
         const plataformaId = await getOrCreatePlataforma(row.plataforma);
-        let liderId: number | null = null;
-        if (row.lider && row.lider !== 'Sin asignar') {
-          liderId = await getOrCreatePersona(row.lider, 'LIDER');
-        }
 
         const existing = await getOne('SELECT id, codigo, estado FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)', [row.serial_number.trim()]);
 
@@ -268,20 +236,16 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
           await run(`
             UPDATE activos SET
               cliente_id = ?, hostname = ?, plataforma_id = ?, ip_url_gestion = ?,
-              lider_id = ?, cogestion = ?, inicio_gestion = ?, fin_gestion = ?,
+              generacion_actas = ?, pet = ?, nombre_proyecto = ?,
+              cogestion = ?, inicio_gestion = ?, fin_gestion = ?,
               correo_soporte = ?, soporte_n1 = ?, pep = ?, estado = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `, [
             clienteId, row.hostname, plataformaId, row.ip_url_gestion,
-            liderId, row.cogestion, row.inicio_gestion, row.fin_gestion,
-            row.correo_soporte, row.soporte_n1, row.pep, row.estado, existing.id
+            row.generacion_actas, row.pet || null, row.nombre_proyecto || null,
+            row.cogestion, row.inicio_gestion, row.fin_gestion,
+            row.correo_soporte || null, row.soporte_n1, row.pep, row.estado, existing.id
           ]);
-
-          await run('DELETE FROM activo_administrador WHERE activo_id = ?', [existing.id]);
-          for (const adminName of row.administradores) {
-            const adminId = await getOrCreatePersona(adminName, 'ADMINISTRADOR');
-            await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [existing.id, adminId]);
-          }
 
           await run(`
             INSERT INTO historial_activo (activo_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
@@ -296,21 +260,18 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
           const res = await run(`
             INSERT INTO activos (
               codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-              lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+              generacion_actas, pet, nombre_proyecto,
+              cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
               pep, estado, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           `, [
             codigo, clienteId, row.hostname, row.serial_number, plataformaId,
-            row.ip_url_gestion, liderId, row.cogestion, row.inicio_gestion,
-            row.fin_gestion, row.correo_soporte, row.soporte_n1, row.pep, row.estado
+            row.ip_url_gestion, row.generacion_actas, row.pet || null, row.nombre_proyecto || null,
+            row.cogestion, row.inicio_gestion, row.fin_gestion,
+            row.correo_soporte || null, row.soporte_n1, row.pep, row.estado
           ]);
 
           const newId = res.lastInsertRowid;
-
-          for (const adminName of row.administradores) {
-            const adminId = await getOrCreatePersona(adminName, 'ADMINISTRADOR');
-            await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [newId, adminId]);
-          }
 
           await run(`
             INSERT INTO historial_activo (activo_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
@@ -339,8 +300,9 @@ export function exportActivosToExcel(activos: any[]): Buffer {
       'Serial Number': a.serial_number,
       'Plataforma': a.plataforma_nombre,
       'IP / URL Gestión': a.ip_url_gestion,
-      'Líder': a.lider_nombre || 'Sin asignar',
-      'Administrador(es)': a.administradores || 'Sin asignar',
+      'Generación Actas': a.generacion_actas || 'N/A',
+      'PET': a.pet || 'N/A',
+      'Nombre del Proyecto': a.nombre_proyecto || 'N/A',
       'Cogestión': a.cogestion,
       'Soporte N1': a.soporte_n1,
       'Correo de Soporte': a.correo_soporte || 'N/A',
@@ -362,8 +324,9 @@ export function exportActivosToExcel(activos: any[]): Buffer {
 export function exportActivosToCSV(activos: any[]): string {
   const header = [
     'Código', 'Estado', 'Cliente', 'Hostname', 'Serial Number', 'Plataforma',
-    'IP / URL Gestión', 'Líder', 'Administrador(es)', 'Cogestión', 'Soporte N1',
-    'Correo de Soporte', 'Inicio Gestión', 'Fin Gestión', 'Días Restantes', 'Vigencia', 'Estado Vigencia'
+    'IP / URL Gestión', 'Generación Actas', 'PET', 'Nombre del Proyecto',
+    'Cogestión', 'Soporte N1', 'Correo de Soporte', 'Inicio Gestión', 'Fin Gestión',
+    'Días Restantes', 'Vigencia', 'Estado Vigencia'
   ];
 
   const escapeCSV = (val: any) => {
@@ -382,8 +345,9 @@ export function exportActivosToCSV(activos: any[]): string {
       escapeCSV(a.serial_number),
       escapeCSV(a.plataforma_nombre),
       escapeCSV(a.ip_url_gestion),
-      escapeCSV(a.lider_nombre || 'Sin asignar'),
-      escapeCSV(a.administradores || 'Sin asignar'),
+      escapeCSV(a.generacion_actas || 'N/A'),
+      escapeCSV(a.pet || 'N/A'),
+      escapeCSV(a.nombre_proyecto || 'N/A'),
       escapeCSV(a.cogestion),
       escapeCSV(a.soporte_n1),
       escapeCSV(a.correo_soporte || 'N/A'),

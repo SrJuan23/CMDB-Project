@@ -12,8 +12,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       q = '',
       cliente_id,
       plataforma_id,
-      lider_id,
-      administrador_id,
       cogestion,
       soporte_n1,
       vigencia,
@@ -28,19 +26,16 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
     let query = `
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.lider_id, a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
+        a.cogestion, a.inicio_gestion, a.fin_gestion,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
-        l.nombre AS lider_nombre,
-        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres,
-        STRING_AGG(DISTINCT adm.id) AS administradores_ids
+        p.sku AS plataforma_sku,
+        p.descripcion AS plataforma_descripcion
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
-      LEFT JOIN personas l ON a.lider_id = l.id
-      LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-      LEFT JOIN personas adm ON aa.persona_id = adm.id
     `;
 
     const whereClauses: string[] = [];
@@ -61,11 +56,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       params.push(parseInt(plataforma_id, 10));
     }
 
-    if (lider_id) {
-      whereClauses.push('a.lider_id = ?');
-      params.push(parseInt(lider_id, 10));
-    }
-
     if (cogestion) {
       whereClauses.push('a.cogestion = ?');
       params.push(cogestion.toUpperCase());
@@ -84,14 +74,15 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         a.serial_number LIKE ? OR
         a.ip_url_gestion LIKE ? OR
         a.correo_soporte LIKE ? OR
+        a.pet LIKE ? OR
+        a.nombre_proyecto LIKE ? OR
+        a.pep LIKE ? OR
         c.nombre LIKE ? OR
-        p.nombre LIKE ? OR
-        l.nombre LIKE ? OR
-        adm.nombre LIKE ?
+        p.nombre LIKE ?
       )`);
       params.push(
         searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
-        searchTerm, searchTerm, searchTerm, searchTerm
+        searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
       );
     }
 
@@ -99,33 +90,19 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       query += ` WHERE ${whereClauses.join(' AND ')}`;
     }
 
-    query += ` GROUP BY a.id`;
-
-    if (administrador_id) {
-      query += ` HAVING ',' || administradores_ids || ',' LIKE ?`;
-      params.push(`%,${administrador_id},%`);
-    }
-
     const rawRows = await getAll(query, params);
 
     let enriched = rawRows.map(row => {
       const vig = calculateVigencia(row.fin_gestion, threshold);
-      const adminNames = row.administradores_nombres ? row.administradores_nombres.split(',') : [];
-      const adminIds = row.administradores_ids ? row.administradores_ids.split(',').map((x: string) => parseInt(x, 10)) : [];
-      const administradores = adminNames.map((name: string, idx: number) => ({
-        id: adminIds[idx],
-        nombre: name
-      }));
 
       return {
         ...row,
-        administradores,
-        administradores_str: adminNames.join(', ') || 'Sin asignar',
         vigencia: vig,
         dias_restantes: vig.dias_restantes,
         estado_vigencia: vig.estado_vigencia,
         inicio_gestion_formateada: formatDateSpanish(row.inicio_gestion),
-        fin_gestion_formateada: formatDateSpanish(row.fin_gestion)
+        fin_gestion_formateada: formatDateSpanish(row.fin_gestion),
+        generacion_actas_formateada: formatDateSpanish(row.generacion_actas)
       };
     });
 
@@ -176,9 +153,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       } else if (sort_by === 'plataforma') {
         valA = a.plataforma_nombre;
         valB = b.plataforma_nombre;
-      } else if (sort_by === 'lider') {
-        valA = a.lider_nombre || '';
-        valB = b.lider_nombre || '';
       } else if (sort_by === 'dias_restantes') {
         valA = a.dias_restantes !== null ? a.dias_restantes : 999999;
         valB = b.dias_restantes !== null ? b.dias_restantes : 999999;
@@ -227,26 +201,17 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
         a.*,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
-        p.descripcion AS plataforma_descripcion,
-        l.nombre AS lider_nombre,
-        l.email AS lider_email
+        p.sku AS plataforma_sku,
+        p.descripcion AS plataforma_descripcion
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
-      LEFT JOIN personas l ON a.lider_id = l.id
       WHERE a.id = ? OR a.codigo = ?
     `, [id, id]);
 
     if (!activo) {
       return res.status(404).json({ error: 'Activo no encontrado' });
     }
-
-    const admins = await getAll(`
-      SELECT p.id, p.nombre, p.email, p.tipo
-      FROM activo_administrador aa
-      JOIN personas p ON aa.persona_id = p.id
-      WHERE aa.activo_id = ?
-    `, [activo.id]);
 
     const tickets = await getAll(`
       SELECT * FROM tickets_relacionados WHERE activo_id = ? ORDER BY id DESC
@@ -260,15 +225,14 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
 
     return res.json({
       ...activo,
-      administradores: admins,
-      administradores_str: admins.map(a => a.nombre).join(', ') || 'Sin asignar',
       tickets_relacionados: tickets,
       historial,
       vigencia,
       dias_restantes: vigencia.dias_restantes,
       estado_vigencia: vigencia.estado_vigencia,
       inicio_gestion_formateada: formatDateSpanish(activo.inicio_gestion),
-      fin_gestion_formateada: formatDateSpanish(activo.fin_gestion)
+      fin_gestion_formateada: formatDateSpanish(activo.fin_gestion),
+      generacion_actas_formateada: formatDateSpanish(activo.generacion_actas)
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -317,8 +281,9 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       serial_number,
       plataforma_id,
       ip_url_gestion,
-      lider_id,
-      administradores_ids = [],
+      generacion_actas,
+      pet,
+      nombre_proyecto,
       cogestion = 'NO',
       inicio_gestion,
       fin_gestion,
@@ -353,6 +318,7 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
 
     const inicioParsed = parseExcelDate(inicio_gestion);
     const finParsed = parseExcelDate(fin_gestion);
+    const genActasParsed = generacion_actas ? parseExcelDate(generacion_actas) : null;
 
     const userName = req.user?.nombre || 'Usuario';
 
@@ -360,9 +326,10 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       const insertResult = await run(`
         INSERT INTO activos (
           codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-          lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+          generacion_actas, pet, nombre_proyecto,
+          cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
           pep, estado, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
         codigo,
         parseInt(cliente_id, 10),
@@ -370,7 +337,9 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
         serial_number.trim(),
         parseInt(plataforma_id, 10),
         (ip_url_gestion || 'N/A').trim(),
-        lider_id ? parseInt(lider_id, 10) : null,
+        genActasParsed,
+        pet ? pet.trim() : null,
+        nombre_proyecto ? nombre_proyecto.trim() : null,
         cogestion === 'SI' ? 'SI' : 'NO',
         inicioParsed,
         finParsed,
@@ -381,12 +350,6 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       ]);
 
       const insertedId = insertResult.lastInsertRowid;
-
-      if (Array.isArray(administradores_ids)) {
-        for (const adminId of administradores_ids) {
-          await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [insertedId, parseInt(adminId, 10)]);
-        }
-      }
 
       await run(`
         INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
@@ -412,8 +375,9 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       serial_number,
       plataforma_id,
       ip_url_gestion,
-      lider_id,
-      administradores_ids,
+      generacion_actas,
+      pet,
+      nombre_proyecto,
       cogestion,
       inicio_gestion,
       fin_gestion,
@@ -433,6 +397,7 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
 
     const inicioParsed = inicio_gestion ? parseExcelDate(inicio_gestion) : old.inicio_gestion;
     const finParsed = fin_gestion ? parseExcelDate(fin_gestion) : old.fin_gestion;
+    const genActasParsed = generacion_actas !== undefined ? parseExcelDate(generacion_actas) : old.generacion_actas;
 
     await transaction(async () => {
       const checkDiff = async (field: string, oldVal: any, newVal: any) => {
@@ -447,6 +412,9 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       await checkDiff('Hostname', old.hostname, hostname);
       await checkDiff('Serial Number', old.serial_number, serial_number);
       await checkDiff('IP/URL Gestión', old.ip_url_gestion, ip_url_gestion);
+      await checkDiff('Generación de Actas', old.generacion_actas, genActasParsed);
+      await checkDiff('PET', old.pet, pet);
+      await checkDiff('Nombre del Proyecto', old.nombre_proyecto, nombre_proyecto);
       await checkDiff('Cogestión', old.cogestion, cogestion);
       await checkDiff('Soporte N1', old.soporte_n1, soporte_n1);
       await checkDiff('Correo Soporte', old.correo_soporte, correo_soporte);
@@ -461,7 +429,9 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
           serial_number = COALESCE(?, serial_number),
           plataforma_id = COALESCE(?, plataforma_id),
           ip_url_gestion = COALESCE(?, ip_url_gestion),
-          lider_id = ?,
+          generacion_actas = ?,
+          pet = COALESCE(?, pet),
+          nombre_proyecto = COALESCE(?, nombre_proyecto),
           cogestion = COALESCE(?, cogestion),
           inicio_gestion = ?,
           fin_gestion = ?,
@@ -477,7 +447,9 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
         serial_number ? serial_number.trim() : null,
         plataforma_id ? parseInt(plataforma_id, 10) : null,
         ip_url_gestion ? ip_url_gestion.trim() : null,
-        lider_id !== undefined ? (lider_id ? parseInt(lider_id, 10) : null) : old.lider_id,
+        genActasParsed,
+        pet !== undefined ? (pet ? pet.trim() : null) : old.pet,
+        nombre_proyecto !== undefined ? (nombre_proyecto ? nombre_proyecto.trim() : null) : old.nombre_proyecto,
         cogestion,
         inicioParsed,
         finParsed,
@@ -487,17 +459,6 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
         estado,
         old.id
       ]);
-
-      if (Array.isArray(administradores_ids)) {
-        await run('DELETE FROM activo_administrador WHERE activo_id = ?', [old.id]);
-        for (const adminId of administradores_ids) {
-          await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [old.id, parseInt(adminId, 10)]);
-        }
-        await run(`
-          INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, [old.id, userId, userName, 'Administradores', 'Modificados', 'Lista actualizada']);
-      }
     });
 
     return res.json({ message: 'Activo actualizado con éxito' });

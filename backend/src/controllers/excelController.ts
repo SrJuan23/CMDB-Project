@@ -91,8 +91,6 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
       q = '',
       cliente_id,
       plataforma_id,
-      lider_id,
-      administrador_id,
       cogestion,
       soporte_n1,
       vigencia,
@@ -102,18 +100,14 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
     let query = `
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.lider_id, a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
+        a.cogestion, a.inicio_gestion, a.fin_gestion,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado,
         c.nombre AS cliente_nombre,
-        p.nombre AS plataforma_nombre,
-        l.nombre AS lider_nombre,
-        STRING_AGG(DISTINCT adm.nombre) AS administradores
+        p.nombre AS plataforma_nombre
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
-      LEFT JOIN personas l ON a.lider_id = l.id
-      LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-      LEFT JOIN personas adm ON aa.persona_id = adm.id
     `;
 
     const whereClauses: string[] = [];
@@ -134,11 +128,6 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
       params.push(parseInt(plataforma_id, 10));
     }
 
-    if (lider_id) {
-      whereClauses.push('a.lider_id = ?');
-      params.push(parseInt(lider_id, 10));
-    }
-
     if (cogestion) {
       whereClauses.push('a.cogestion = ?');
       params.push(cogestion.toUpperCase());
@@ -157,22 +146,13 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
         a.serial_number LIKE ? OR
         a.ip_url_gestion LIKE ? OR
         c.nombre LIKE ? OR
-        p.nombre LIKE ? OR
-        l.nombre LIKE ? OR
-        adm.nombre LIKE ?
+        p.nombre LIKE ?
       )`);
-      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (whereClauses.length > 0) {
       query += ` WHERE ${whereClauses.join(' AND ')}`;
-    }
-
-    query += ` GROUP BY a.id`;
-
-    if (administrador_id) {
-      query += ` HAVING ',' || STRING_AGG(DISTINCT adm.id) || ',' LIKE ?`;
-      params.push(`%,${administrador_id},%`);
     }
 
     const rawRows = await getAll(query, params);
