@@ -7,17 +7,15 @@ Aplicación web empresarial para la gestión de una CMDB (Configuration Manageme
 - **Frontend**: TypeScript + Vite + Tailwind CSS + Chart.js
 - **Backend**: Node.js + Express + TypeScript
 - **Base de datos**: PostgreSQL (producción) / SQLite (desarrollo)
-- **Proxy**: Nginx (contenedor)
 - **Auth**: JWT + bcrypt
 
 ## Requisitos
 
 - Node.js >= 18
 - npm >= 9
-- Docker y Docker Compose (recomendado para producción)
-- PostgreSQL 16 (si no usas Docker)
+- PostgreSQL 16 (si ejecutas la base de datos localmente)
 
-## Inicio rápido (Docker - recomendado)
+## Inicio rápido (desarrollo)
 
 ```bash
 # 1. Clonar
@@ -29,19 +27,10 @@ cp backend/.env.example backend/.env
 # - JWT_SECRET (obligatorio en producción)
 # - PG_PASSWORD (si usas PostgreSQL)
 
-# 3. Levantar todo (PostgreSQL + Backend + Nginx + Frontend build)
-docker compose up -d --build
-
-# 4. Ver logs
-docker compose logs -f backend
-
-# 5. Acceder
-# Frontend: http://localhost
-# API: http://localhost/api
-# Health: http://localhost/api/health
+# 3. Iniciar backend y frontend según las instrucciones siguientes
 ```
 
-## Inicio sin Docker (desarrollo)
+## Inicio local
 
 ```bash
 # 1. Instalar dependencias

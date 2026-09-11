@@ -1,9 +1,6 @@
 -- TTECH CMDB - PostgreSQL Schema
--- Ejecutar con: psql -U postgres -f postgres-schema.sql
-
-CREATE DATABASE IF NOT EXISTS cmdb_ttech;
-
-\c cmdb_ttech;
+-- Ejecutar contra la base de datos ya creada:
+-- psql "$DATABASE_URL" -f postgres-schema.sql
 
 CREATE TABLE IF NOT EXISTS usuarios (
   id SERIAL PRIMARY KEY,

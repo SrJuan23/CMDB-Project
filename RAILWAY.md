@@ -113,7 +113,7 @@ curl -X POST https://tu-proyecto.up.railway.app/api/auth/login \
 
 ## Notas importantes
 
-- **PostgreSQL**: Railway provee PostgreSQL como servicio. No necesitas deployar tu propio contenedor de DB.
+- **PostgreSQL**: Railway provee PostgreSQL como servicio independiente.
 - **Persistencia**: Railway monta un volumen en `/app/data` para SQLite (solo desarrollo). En producción usá PostgreSQL.
 - **Logs**: Disponibles en **Deployments** → **View Logs**
 - **Métricas**: Disponibles en **Metrics** (CPU, RAM, Requests)

@@ -40,8 +40,12 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-initDatabase();
-runSeed().catch(err => console.error('Error during auto-seed:', err));
+initDatabase()
+  .then(() => runSeed())
+  .catch(err => {
+    console.error('Error during database initialization:', err);
+    process.exit(1);
+  });
 
 app.use('/api/auth', authRoutes);
 app.use('/api/activos', activosRoutes);
