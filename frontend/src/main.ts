@@ -91,8 +91,8 @@ async function init() {
   }
 
   await loadInitialData();
-  renderApp();
   setupGlobalListeners();
+  renderApp();
 }
 
 async function loadActivos() {
@@ -221,8 +221,8 @@ function showLogin() {
       const res = await api.login(email, pass);
       currentUser = res.user;
       await loadInitialData();
-      renderApp();
       setupGlobalListeners();
+      renderApp();
       showToast(`Bienvenido ${currentUser.nombre}`, 'success');
     } catch (err: any) {
       showToast(err.message || 'Error de autenticación', 'error');
@@ -245,7 +245,11 @@ function renderApp() {
     </div>`;
 
   if (currentTab === 'dashboard' && dashboardStats) {
-    initDashboardCharts(dashboardStats);
+    try {
+      initDashboardCharts(dashboardStats);
+    } catch (e) {
+      console.error('Error initDashboardCharts:', e);
+    }
     initDashboardSortable();
   }
 
