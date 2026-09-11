@@ -1,5 +1,8 @@
 import { getDb, getDbType } from './databaseConnection';
 import Database from 'better-sqlite3';
+import { Pool } from 'pg';
+import fs from 'fs';
+import path from 'path';
 import { exec, getOne, getAll, run, transaction, query } from './queryHelper';
 
 export { getDb, getDbType };
@@ -7,6 +10,15 @@ export { query, getOne, getAll, run, exec, transaction };
 
 export async function initDatabase() {
   if (getDbType() === 'postgres') {
+    const schemaPath = path.resolve(__dirname, 'postgres-schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    await (getDb() as Pool).query(schema);
+
+    const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
+    if (!config || Number(config.count) === 0) {
+      await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
+      await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
+    }
     return;
   }
 
