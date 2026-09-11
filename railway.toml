@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd backend && NODE_ENV=development npm install && npx tsc && NODE_ENV=production npm prune --omit=dev"
+buildCommand = "cd frontend && npm install && npm run build && cd ../backend && NODE_ENV=development npm install && npx tsc && NODE_ENV=production npm prune --omit=dev"
 
 [deploy]
 startCommand = "cd backend && npm run start"
