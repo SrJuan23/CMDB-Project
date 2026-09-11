@@ -23,6 +23,7 @@ export function initPlataformaDetailView(plataformaId: number): void {
     heading.textContent = data.plataforma.nombre;
     container.classList.remove('hidden');
     container.innerHTML = `
+      ${data.plataforma.sku ? `<p class="text-xs font-mono text-[#0945F7] bg-[#EDF0FF] inline-block px-2 py-1 rounded font-heading mb-2">SKU: ${data.plataforma.sku}</p>` : ''}
       ${data.plataforma.descripcion ? `<p class="text-sm text-slate-500 font-body">${data.plataforma.descripcion}</p>` : ''}
       <div class="cmdb-card overflow-hidden">
         <div class="px-5 py-3 border-b border-[#EDF0FF]">

@@ -1,75 +1,66 @@
 # TTECH CMDB - Plataforma de Gestión de Activos Tecnológicos
 
-Aplicación web empresarial para la gestión de una CMDB (Configuration Management Database) y registro de activos tecnológicos. Reemplaza el manejo de información mediante Excel por una plataforma centralizada, moderna y escalable.
+Aplicación web empresarial para la gestión de una CMDB (Configuration Management Database) y registro de activos tecnológicos.
 
 ## Stack Tecnológico
 
-- **Frontend**: TypeScript + Vite + Tailwind CSS + Chart.js (SPA vanilla)
+- **Frontend**: TypeScript + Vite + Tailwind CSS + Chart.js
 - **Backend**: Node.js + Express + TypeScript
-- **Base de datos**: SQLite (producción lista para migrar a MySQL)
-- **Autenticación**: JWT + bcrypt
-- **Roles**: ADMIN, GESTOR, CONSULTA
+- **Base de datos**: PostgreSQL (producción) / SQLite (desarrollo)
+- **Proxy**: Nginx (contenedor)
+- **Auth**: JWT + bcrypt
 
-## Características
+## Requisitos
 
-- CRUD completo de activos, clientes, plataformas, líderes y administradores
-- Dashboard con KPIs y gráficos interactivos
-- Cálculo automático de vigencias y alertas de vencimiento
-- Importación masiva desde Excel
-- Exportación a Excel y CSV
-- Historial de cambios (auditoría)
-- Búsqueda global y filtros avanzados
-- Vista 360° de clientes y activos
-- Sistema de roles y permisos
+- Node.js >= 18
+- npm >= 9
+- Docker y Docker Compose (recomendado para producción)
+- PostgreSQL 16 (si no usas Docker)
 
-## Estructura del Proyecto
-
-```
-CMDB-Project/
-├── backend/
-│   ├── src/
-│   │   ├── controllers/    # Lógica de cada recurso
-│   │   ├── routes/         # Definición de endpoints
-│   │   ├── middleware/     # Auth, validaciones
-│   │   ├── services/       # Lógica de negocio (Excel, vigencias)
-│   │   ├── db/             # Conexión y schema
-│   │   └── server.ts       # Entry point
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/     # Vistas (render por templates)
-│   │   ├── services/       # API client
-│   │   ├── types/          # Interfaces TypeScript
-│   │   └── utils/          # UI helpers (toast, modals)
-│   ├── index.html
-│   └── package.json
-└── data/
-    └── CMDB_Soporte.xlsx   # Datos iniciales
-```
-
-## Instalación y Ejecución
+## Inicio rápido (Docker - recomendado)
 
 ```bash
-# Instalar dependencias
-npm run install:all
+# 1. Clonar
+git clone <repo-url> && cd CMDB-Project
 
-# Desarrollo (backend + frontend)
-npm run dev
+# 2. Configurar variables de entorno
+cp backend/.env.example backend/.env
+# Editar backend/.env con tus valores:
+# - JWT_SECRET (obligatorio en producción)
+# - PG_PASSWORD (si usas PostgreSQL)
 
-# Backend únicamente
-npm run dev:backend
+# 3. Levantar todo (PostgreSQL + Backend + Nginx + Frontend build)
+docker compose up -d --build
 
-# Frontend únicamente
-npm run dev:frontend
+# 4. Ver logs
+docker compose logs -f backend
 
-# Seed de base de datos
-npm run seed
-
-# Build producción
-npm run build
+# 5. Acceder
+# Frontend: http://localhost
+# API: http://localhost/api
+# Health: http://localhost/api/health
 ```
 
-## Credenciales por defecto
+## Inicio sin Docker (desarrollo)
+
+```bash
+# 1. Instalar dependencias
+npm run install:all
+
+# 2. Backend desarrolloSqlite por defecto)
+cd backend
+npm run dev
+
+# 3. En otra terminal, frontend
+cd frontend
+npm run dev
+
+# 4. Seed de base de datos (solo primera vez)
+cd backend
+npm run seed
+```
+
+## Credenciales por defecto (solo desarrollo)
 
 | Rol | Email | Password |
 |-----|-------|----------|
@@ -112,6 +103,9 @@ GET    /api/config
 PUT    /api/config
 ```
 
-## Licencia
+## Notas
 
-ISC - TTECH
+- El archivo `backend/.env` **no** se versiona. Copiá desde `.env.example`.
+- Para producción, cambiá `JWT_SECRET` y configurá `DB_TYPE=postgres`.
+- Los seeds por defecto son solo para desarrollo.
+- Backend sirve el frontend build si existe `frontend/dist/`.

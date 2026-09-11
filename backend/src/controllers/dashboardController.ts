@@ -1,21 +1,21 @@
 import { Response } from 'express';
-import { db } from '../db/database';
+import { getOne, getAll } from '../db/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { calculateVigencia, formatDateSpanish } from '../services/vigenciaService';
 
 export async function getDashboardStats(req: AuthenticatedRequest, res: Response) {
   try {
-    const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'").get() as any;
+    const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    const allActivos = db.prepare(`
+    const allActivos = await getAll(`
       SELECT 
         a.id, a.codigo, a.hostname, a.serial_number, a.estado, a.fin_gestion,
         a.cogestion, a.soporte_n1, a.cliente_id, a.plataforma_id, a.lider_id,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         l.nombre AS lider_nombre,
-        GROUP_CONCAT(DISTINCT adm.nombre) AS administradores_nombres
+        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -23,10 +23,12 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
       LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
       LEFT JOIN personas adm ON aa.persona_id = adm.id
       GROUP BY a.id
-    `).all() as any[];
+    `);
 
-    const totalClientes = (db.prepare('SELECT COUNT(*) as count FROM clientes').get() as any).count;
-    const totalPlataformas = (db.prepare('SELECT COUNT(*) as count FROM plataformas').get() as any).count;
+    const totalClientesRow = await getOne('SELECT COUNT(*) as count FROM clientes');
+    const totalPlataformasRow = await getOne('SELECT COUNT(*) as count FROM plataformas');
+    const totalClientes = totalClientesRow ? totalClientesRow.count : 0;
+    const totalPlataformas = totalPlataformasRow ? totalPlataformasRow.count : 0;
 
     let activosCount = 0;
     let inactivosCount = 0;
@@ -62,21 +64,17 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
       if (a.soporte_n1 === 'SI') soporteN1Si++;
       else soporteN1No++;
 
-      // Tally platform
       if (a.plataforma_nombre) {
         plataformaCounts.set(a.plataforma_nombre, (plataformaCounts.get(a.plataforma_nombre) || 0) + 1);
       }
 
-      // Tally client
       if (a.cliente_nombre) {
         clienteCounts.set(a.cliente_nombre, (clienteCounts.get(a.cliente_nombre) || 0) + 1);
       }
 
-      // Tally leader
       const lider = a.lider_nombre || 'Sin asignar';
       liderCounts.set(lider, (liderCounts.get(lider) || 0) + 1);
 
-      // Tally admins
       if (a.administradores_nombres) {
         a.administradores_nombres.split(',').forEach((name: string) => {
           const admClean = name.trim();
@@ -84,7 +82,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
         });
       }
 
-      // Vigencia
       const vig = calculateVigencia(a.fin_gestion, threshold);
       if (vig.estado_vigencia === 'VIGENTE') vigentesCount++;
       else if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximosCount++;
@@ -92,7 +89,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
 
       if (vig.dias_restantes !== null) {
         if (vig.dias_restantes < 0) {
-          // already expired
         } else {
           if (vig.dias_restantes <= 7) vencen7++;
           if (vig.dias_restantes <= 30) vencen30++;
@@ -100,7 +96,6 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
           if (vig.dias_restantes <= 90) vencen90++;
         }
 
-        // Add to attention required if expired or expiring within 60 days
         if (vig.dias_restantes <= 60 && a.estado === 'ACTIVO') {
           atencionRequerida.push({
             id: a.id,
@@ -122,10 +117,8 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
       }
     });
 
-    // Sort attention required: lowest days first (vencidos first, then closest to expire)
     atencionRequerida.sort((a, b) => a.dias_restantes - b.dias_restantes);
 
-    // Format charts datasets
     const sortedPlataformas = Array.from(plataformaCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);

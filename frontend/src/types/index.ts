@@ -68,6 +68,7 @@ export interface Cliente {
 export interface Plataforma {
   id: number;
   nombre: string;
+  sku?: string | null;
   descripcion?: string | null;
   estado: 'ACTIVO' | 'INACTIVO';
   created_at: string;

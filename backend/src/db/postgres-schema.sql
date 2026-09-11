@@ -1,0 +1,116 @@
+-- TTECH CMDB - PostgreSQL Schema
+-- Ejecutar con: psql -U postgres -f postgres-schema.sql
+
+CREATE DATABASE IF NOT EXISTS cmdb_ttech;
+
+\c cmdb_ttech;
+
+CREATE TABLE IF NOT EXISTS usuarios (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(150) NOT NULL,
+  email VARCHAR(150) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  rol VARCHAR(20) NOT NULL DEFAULT 'GESTOR',
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS clientes (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(200) UNIQUE NOT NULL,
+  contacto VARCHAR(200) NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS plataformas (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(150) UNIQUE NOT NULL,
+  sku VARCHAR(100) UNIQUE,
+  descripcion TEXT NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS personas (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(150) UNIQUE NOT NULL,
+  email VARCHAR(150) NULL,
+  tipo VARCHAR(20) NOT NULL DEFAULT 'AMBOS',
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS activos (
+  id SERIAL PRIMARY KEY,
+  codigo VARCHAR(20) UNIQUE NOT NULL,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON UPDATE CASCADE,
+  hostname VARCHAR(200) NOT NULL,
+  serial_number VARCHAR(150) NOT NULL,
+  plataforma_id INTEGER NOT NULL REFERENCES plataformas(id) ON UPDATE CASCADE,
+  ip_url_gestion TEXT NOT NULL,
+  lider_id INTEGER NULL REFERENCES personas(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  cogestion VARCHAR(2) NOT NULL DEFAULT 'NO',
+  inicio_gestion DATE NULL,
+  fin_gestion DATE NULL,
+  correo_soporte VARCHAR(200) NULL,
+  soporte_n1 VARCHAR(2) NOT NULL DEFAULT 'NO',
+  pep VARCHAR(100) NULL,
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS activo_administrador (
+  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (activo_id, persona_id)
+);
+
+CREATE TABLE IF NOT EXISTS historial_activo (
+  id SERIAL PRIMARY KEY,
+  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  usuario_id INTEGER NULL REFERENCES usuarios(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  usuario_nombre VARCHAR(150) NOT NULL,
+  campo VARCHAR(100) NOT NULL,
+  valor_anterior TEXT NULL,
+  valor_nuevo TEXT NULL,
+  fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS configuracion (
+  clave VARCHAR(50) PRIMARY KEY,
+  valor TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tickets_relacionados (
+  id SERIAL PRIMARY KEY,
+  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ticket_codigo VARCHAR(50) NOT NULL,
+  titulo VARCHAR(255) NOT NULL,
+  estado VARCHAR(50) NOT NULL DEFAULT 'ABIERTO',
+  prioridad VARCHAR(50) DEFAULT 'MEDIA',
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
+CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
+CREATE INDEX IF NOT EXISTS idx_activos_lider ON activos(lider_id);
+CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
+CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
+CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_activos_timestamp ON activos;
+CREATE TRIGGER update_activos_timestamp
+  BEFORE UPDATE ON activos
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();

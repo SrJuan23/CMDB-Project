@@ -1,11 +1,11 @@
 import { Response } from 'express';
-import { db } from '../db/database';
+import { getOne, getAll, run } from '../db/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { calculateVigencia, formatDateSpanish } from '../services/vigenciaService';
 
 export async function getClientes(req: AuthenticatedRequest, res: Response) {
   try {
-    const clientes = db.prepare(`
+    const clientes = await getAll(`
       SELECT 
         c.id, c.nombre, c.contacto, c.estado, c.created_at,
         COUNT(a.id) AS total_activos,
@@ -15,13 +15,12 @@ export async function getClientes(req: AuthenticatedRequest, res: Response) {
       LEFT JOIN activos a ON c.id = a.cliente_id
       GROUP BY c.id
       ORDER BY c.nombre ASC
-    `).all() as any[];
+    `);
 
-    // Calculate real-time vencidos and próximos for each client
-    const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'").get() as any;
+    const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    const allActivos = db.prepare('SELECT cliente_id, fin_gestion, estado FROM activos').all() as any[];
+    const allActivos = await getAll('SELECT cliente_id, fin_gestion, estado FROM activos');
 
     const enriched = clientes.map(c => {
       let vencidos = 0;
@@ -54,22 +53,21 @@ export async function getClientes(req: AuthenticatedRequest, res: Response) {
 export async function getCliente360(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const cliente = db.prepare('SELECT * FROM clientes WHERE id = ?').get(id) as any;
+    const cliente = await getOne('SELECT * FROM clientes WHERE id = ?', [id]);
 
     if (!cliente) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
-    const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'").get() as any;
+    const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    // Get all assets for this client
-    const activos = db.prepare(`
+    const activos = await getAll(`
       SELECT 
         a.*,
         p.nombre AS plataforma_nombre,
         l.nombre AS lider_nombre,
-        GROUP_CONCAT(DISTINCT adm.nombre) AS administradores_nombres
+        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
       FROM activos a
       JOIN plataformas p ON a.plataforma_id = p.id
       LEFT JOIN personas l ON a.lider_id = l.id
@@ -78,7 +76,7 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
       WHERE a.cliente_id = ?
       GROUP BY a.id
       ORDER BY a.estado ASC, a.hostname ASC
-    `).all(cliente.id) as any[];
+    `, [cliente.id]);
 
     let activosCount = 0;
     let inactivosCount = 0;
@@ -98,12 +96,10 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
       else if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximosCount++;
       else if (vig.estado_vigencia === 'VIGENTE') vigentesCount++;
 
-      // Platforms tally
       if (a.plataforma_nombre) {
         plataformasMap.set(a.plataforma_nombre, (plataformasMap.get(a.plataforma_nombre) || 0) + 1);
       }
 
-      // Administrators tally
       if (a.administradores_nombres) {
         a.administradores_nombres.split(',').forEach((name: string) => {
           const clean = name.trim();
@@ -150,11 +146,11 @@ export async function createCliente(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'El nombre del cliente es obligatorio' });
     }
 
-    const resDb = db.prepare('INSERT INTO clientes (nombre, contacto, estado) VALUES (?, ?, ?)').run(
+    const resDb = await run('INSERT INTO clientes (nombre, contacto, estado) VALUES (?, ?, ?)', [
       nombre.trim(),
       contacto ? contacto.trim() : null,
       estado
-    );
+    ]);
 
     return res.status(201).json({ id: resDb.lastInsertRowid, message: 'Cliente creado con éxito' });
   } catch (error: any) {
@@ -167,13 +163,13 @@ export async function updateCliente(req: AuthenticatedRequest, res: Response) {
     const { id } = req.params;
     const { nombre, contacto, estado } = req.body;
 
-    db.prepare(`
+    await run(`
       UPDATE clientes SET
         nombre = COALESCE(?, nombre),
         contacto = COALESCE(?, contacto),
         estado = COALESCE(?, estado)
       WHERE id = ?
-    `).run(nombre ? nombre.trim() : null, contacto ? contacto.trim() : null, estado, id);
+    `, [nombre ? nombre.trim() : null, contacto ? contacto.trim() : null, estado, id]);
 
     return res.json({ message: 'Cliente actualizado con éxito' });
   } catch (error: any) {
@@ -184,12 +180,12 @@ export async function updateCliente(req: AuthenticatedRequest, res: Response) {
 export async function deleteCliente(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const count = (db.prepare('SELECT COUNT(*) as count FROM activos WHERE cliente_id = ?').get(id) as any).count;
-    if (count > 0) {
-      return res.status(400).json({ error: `No se puede eliminar el cliente porque tiene ${count} activos asociados.` });
+    const countRow = await getOne('SELECT COUNT(*) as count FROM activos WHERE cliente_id = ?', [id]);
+    if (countRow && countRow.count > 0) {
+      return res.status(400).json({ error: `No se puede eliminar el cliente porque tiene ${countRow.count} activos asociados.` });
     }
 
-    db.prepare('DELETE FROM clientes WHERE id = ?').run(id);
+    await run('DELETE FROM clientes WHERE id = ?', [id]);
     return res.json({ message: 'Cliente eliminado con éxito' });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -203,11 +199,11 @@ export async function cambiarEstadoCliente(req: AuthenticatedRequest, res: Respo
     if (!nuevo_estado || (nuevo_estado !== 'ACTIVO' && nuevo_estado !== 'INACTIVO')) {
       return res.status(400).json({ error: 'Estado inválido. Debe ser ACTIVO o INACTIVO.' });
     }
-    const cliente = db.prepare('SELECT id, nombre, estado FROM clientes WHERE id = ?').get(id) as any;
+    const cliente = await getOne('SELECT id, nombre, estado FROM clientes WHERE id = ?', [id]);
     if (!cliente) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
-    db.prepare('UPDATE clientes SET estado = ? WHERE id = ?').run(nuevo_estado, id);
+    await run('UPDATE clientes SET estado = ? WHERE id = ?', [nuevo_estado, id]);
     return res.json({ message: `Cliente ${cliente.nombre} cambiado a ${nuevo_estado}`, nuevo_estado });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

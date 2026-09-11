@@ -1,30 +1,22 @@
+import { getDb, getDbType } from './databaseConnection';
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
-import dotenv from 'dotenv';
+import { exec, getOne, getAll, run, transaction, query } from './queryHelper';
 
-dotenv.config();
+export { getDb, getDbType };
+export { query, getOne, getAll, run, exec, transaction };
 
-const dbDir = path.resolve(__dirname, '../../data');
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
+export async function initDatabase() {
+  if (getDbType() === 'postgres') {
+    return;
+  }
 
-const dbPath = path.resolve(dbDir, 'cmdb.sqlite');
-export const db = new Database(dbPath);
-
-// Enable foreign keys and WAL mode for maximum performance and concurrency
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-export function initDatabase() {
-  db.exec(`
+  exec(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT NOT NULL,
       email TEXT UNIQUE COLLATE NOCASE NOT NULL,
       password_hash TEXT NOT NULL,
-      rol TEXT NOT NULL DEFAULT 'GESTOR', -- 'ADMIN', 'GESTOR', 'CONSULTA'
+      rol TEXT NOT NULL DEFAULT 'GESTOR',
       estado TEXT NOT NULL DEFAULT 'ACTIVO',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -40,6 +32,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS plataformas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT UNIQUE COLLATE NOCASE NOT NULL,
+      sku TEXT UNIQUE COLLATE NOCASE,
       descripcion TEXT,
       estado TEXT NOT NULL DEFAULT 'ACTIVO',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -49,7 +42,7 @@ export function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre TEXT UNIQUE COLLATE NOCASE NOT NULL,
       email TEXT,
-      tipo TEXT NOT NULL DEFAULT 'AMBOS', -- 'LIDER', 'ADMINISTRADOR', 'AMBOS'
+      tipo TEXT NOT NULL DEFAULT 'AMBOS',
       estado TEXT NOT NULL DEFAULT 'ACTIVO',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -63,13 +56,13 @@ export function initDatabase() {
       plataforma_id INTEGER NOT NULL REFERENCES plataformas(id),
       ip_url_gestion TEXT NOT NULL,
       lider_id INTEGER REFERENCES personas(id),
-      cogestion TEXT NOT NULL DEFAULT 'NO', -- 'SI', 'NO'
-      inicio_gestion TEXT, -- YYYY-MM-DD
-      fin_gestion TEXT,    -- YYYY-MM-DD
+      cogestion TEXT NOT NULL DEFAULT 'NO',
+      inicio_gestion TEXT,
+      fin_gestion TEXT,
       correo_soporte TEXT,
-      soporte_n1 TEXT NOT NULL DEFAULT 'NO', -- 'SI', 'NO'
+      soporte_n1 TEXT NOT NULL DEFAULT 'NO',
       pep TEXT,
-      estado TEXT NOT NULL DEFAULT 'ACTIVO', -- 'ACTIVO', 'INACTIVO'
+      estado TEXT NOT NULL DEFAULT 'ACTIVO',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -106,7 +99,6 @@ export function initDatabase() {
       fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Indexes for fast searches and filtering
     CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
     CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
     CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
@@ -116,8 +108,7 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
   `);
 
-  // Trigger para actualizar `updated_at` automáticamente en cada UPDATE de activos
-  db.exec(`
+  exec(`
     CREATE TRIGGER IF NOT EXISTS update_activos_timestamp
     AFTER UPDATE ON activos
     FOR EACH ROW
@@ -126,11 +117,21 @@ export function initDatabase() {
     END;
   `);
 
-  // Initialize default configuration if not set
-  const checkConfig = db.prepare('SELECT COUNT(*) as count FROM configuracion').get() as { count: number };
-  if (checkConfig.count === 0) {
-    const insertConfig = db.prepare('INSERT INTO configuracion (clave, valor) VALUES (?, ?)');
-    insertConfig.run('dias_proximo_vencer', '30');
-    insertConfig.run('bloquear_duplicados_serial', '0'); // 0 = allow with warning, 1 = strict block
+  const checkConfig = await getOne('SELECT COUNT(*) as count FROM configuracion');
+  if (!checkConfig || checkConfig.count === 0) {
+    await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
+    await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
+  }
+
+  try {
+    const db = getDb() as Database.Database;
+    const cols = db.pragma('table_info(plataformas)') as any[];
+    const hasSku = cols.some((col: any) => col.name === 'sku');
+    if (!hasSku) {
+      exec('ALTER TABLE plataformas ADD COLUMN sku TEXT');
+      exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku)');
+    }
+  } catch (err) {
+    console.error('Error en migracion sku:', err);
   }
 }

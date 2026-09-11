@@ -24,7 +24,6 @@ const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000').split(',').map(o => o.trim());
 
-// Security and middleware
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
@@ -41,11 +40,9 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Initialize DB and verify seed
 initDatabase();
 runSeed().catch(err => console.error('Error during auto-seed:', err));
 
-// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/activos', activosRoutes);
 app.use('/api/clientes', clientesRoutes);
@@ -56,14 +53,20 @@ app.use('/api/excel', excelRoutes);
 app.use('/api/historial', historialRoutes);
 app.use('/api/config', configRoutes);
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), platform: 'TTECH CMDB' });
 });
 
-// Serve frontend build if available (production mode)
 const frontendDist = path.resolve(__dirname, '../../frontend/dist');
-if (fs.existsSync(frontendDist)) {
+const frontendPublic = path.resolve(__dirname, '../public');
+
+if (fs.existsSync(frontendPublic)) {
+  app.use(express.static(frontendPublic));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.resolve(frontendPublic, 'index.html'));
+  });
+} else if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
@@ -71,7 +74,6 @@ if (fs.existsSync(frontendDist)) {
   });
 }
 
-// Global error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled server error:', err);
   res.status(500).json({ error: err.message || 'Error interno del servidor' });

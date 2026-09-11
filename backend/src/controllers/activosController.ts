@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { db } from '../db/database';
+import { getOne, getAll, run, transaction } from '../db/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { calculateVigencia, formatDateSpanish, parseExcelDate } from '../services/vigenciaService';
 
@@ -22,11 +22,9 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       sort_order = 'desc'
     } = req.query as Record<string, string>;
 
-    // Config threshold
-    const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'").get() as { valor: string } | undefined;
+    const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    // Build base query
     let query = `
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
@@ -35,8 +33,8 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         l.nombre AS lider_nombre,
-        GROUP_CONCAT(DISTINCT adm.nombre) AS administradores_nombres,
-        GROUP_CONCAT(DISTINCT adm.id) AS administradores_ids
+        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres,
+        STRING_AGG(DISTINCT adm.id) AS administradores_ids
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -48,43 +46,36 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
     const whereClauses: string[] = [];
     const params: any[] = [];
 
-    // Filter by estado
     if (estado && estado !== 'TODOS') {
       whereClauses.push('a.estado = ?');
       params.push(estado.toUpperCase());
     }
 
-    // Filter by client
     if (cliente_id) {
       whereClauses.push('a.cliente_id = ?');
       params.push(parseInt(cliente_id, 10));
     }
 
-    // Filter by platform
     if (plataforma_id) {
       whereClauses.push('a.plataforma_id = ?');
       params.push(parseInt(plataforma_id, 10));
     }
 
-    // Filter by leader
     if (lider_id) {
       whereClauses.push('a.lider_id = ?');
       params.push(parseInt(lider_id, 10));
     }
 
-    // Filter by cogestion
     if (cogestion) {
       whereClauses.push('a.cogestion = ?');
       params.push(cogestion.toUpperCase());
     }
 
-    // Filter by soporte_n1
     if (soporte_n1) {
       whereClauses.push('a.soporte_n1 = ?');
       params.push(soporte_n1.toUpperCase());
     }
 
-    // Global text search
     if (q && q.trim().length > 0) {
       const searchTerm = `%${q.trim()}%`;
       whereClauses.push(`(
@@ -110,16 +101,13 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
 
     query += ` GROUP BY a.id`;
 
-    // Filter by administrator (needs HAVING because of GROUP_CONCAT or join)
     if (administrador_id) {
       query += ` HAVING ',' || administradores_ids || ',' LIKE ?`;
       params.push(`%,${administrador_id},%`);
     }
 
-    // Execute query to get raw results before in-memory vigencia filtering and sorting
-    const rawRows = db.prepare(query).all(...params) as any[];
+    const rawRows = await getAll(query, params);
 
-    // Enrich rows with real-time vigencia calculations
     let enriched = rawRows.map(row => {
       const vig = calculateVigencia(row.fin_gestion, threshold);
       const adminNames = row.administradores_nombres ? row.administradores_nombres.split(',') : [];
@@ -141,7 +129,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       };
     });
 
-    // Filter by vigencia status
     if (vigencia) {
       const vigKey = vigencia.toUpperCase();
       enriched = enriched.filter(item => {
@@ -152,7 +139,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    // Filter by dias_rango (e.g. 7, 30, 60, 90)
     if (dias_rango) {
       const maxDays = parseInt(dias_rango, 10);
       enriched = enriched.filter(item => {
@@ -161,10 +147,7 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    // Calculate global counts for the tabs
-    const allForCounts = db.prepare(`
-      SELECT a.estado, a.fin_gestion FROM activos a
-    `).all() as { estado: string; fin_gestion: string | null }[];
+    const allForCounts = await getAll('SELECT a.estado, a.fin_gestion FROM activos a');
 
     let counts = {
       todos: allForCounts.length,
@@ -182,7 +165,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       if (v.estado_vigencia === 'VENCIDO') counts.vencidos++;
     });
 
-    // Sorting
     const isAsc = sort_order.toLowerCase() === 'asc';
     enriched.sort((a, b) => {
       let valA: any = a[sort_by];
@@ -212,7 +194,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       return isAsc ? (valA < valB ? -1 : 1) : (valA > valB ? -1 : 1);
     });
 
-    // Pagination
     const total = enriched.length;
     let paginated = enriched;
     const pageNum = parseInt(page, 10);
@@ -241,7 +222,7 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
 
-    const activo = db.prepare(`
+    const activo = await getOne(`
       SELECT 
         a.*,
         c.nombre AS cliente_nombre,
@@ -254,29 +235,26 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
       JOIN plataformas p ON a.plataforma_id = p.id
       LEFT JOIN personas l ON a.lider_id = l.id
       WHERE a.id = ? OR a.codigo = ?
-    `).get(id, id) as any;
+    `, [id, id]);
 
     if (!activo) {
       return res.status(404).json({ error: 'Activo no encontrado' });
     }
 
-    // Get administrators
-    const admins = db.prepare(`
+    const admins = await getAll(`
       SELECT p.id, p.nombre, p.email, p.tipo
       FROM activo_administrador aa
       JOIN personas p ON aa.persona_id = p.id
       WHERE aa.activo_id = ?
-    `).all(activo.id) as any[];
+    `, [activo.id]);
 
-    // Get related tickets
-    const tickets = db.prepare(`
+    const tickets = await getAll(`
       SELECT * FROM tickets_relacionados WHERE activo_id = ? ORDER BY id DESC
-    `).all(activo.id) as any[];
+    `, [activo.id]);
 
-    // Get audit history
-    const historial = db.prepare(`
+    const historial = await getAll(`
       SELECT * FROM historial_activo WHERE activo_id = ? ORDER BY id DESC
-    `).all(activo.id) as any[];
+    `, [activo.id]);
 
     const vigencia = calculateVigencia(activo.fin_gestion);
 
@@ -312,7 +290,7 @@ export async function checkSerial(req: AuthenticatedRequest, res: Response) {
       params.push(parseInt(exclude_id, 10));
     }
 
-    const match = db.prepare(query).get(...params) as any;
+    const match = await getOne(query, params);
     if (match) {
       return res.json({
         exists: true,
@@ -355,11 +333,9 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'Cliente, Hostname, Serial Number y Plataforma son obligatorios.' });
     }
 
-    // Check duplicate serial
-    const existing = db.prepare('SELECT id, codigo, hostname FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)').get(serial_number.trim()) as any;
+    const existing = await getOne('SELECT id, codigo, hostname FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)', [serial_number.trim()]);
     if (existing && !force_duplicate) {
-      // Check if duplicate blocking is enabled in configuration
-      const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'bloquear_duplicados_serial'").get() as any;
+      const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'bloquear_duplicados_serial'");
       const isBlocked = configRow && configRow.valor === '1';
 
       if (isBlocked) {
@@ -371,8 +347,7 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       }
     }
 
-    // Generate unique code ACT-XXXXXX
-    const lastNumRow = db.prepare("SELECT MAX(CAST(SUBSTR(codigo, 5) AS INTEGER)) as max_num FROM activos WHERE codigo LIKE 'ACT-%'").get() as { max_num: number | null };
+    const lastNumRow = await getOne("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS INTEGER)) as max_num FROM activos WHERE codigo LIKE 'ACT-%'");
     const nextNum = (lastNumRow?.max_num || 0) + 1;
     const codigo = `ACT-${String(nextNum).padStart(6, '0')}`;
 
@@ -381,26 +356,14 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
 
     const userName = req.user?.nombre || 'Usuario';
 
-    const insertStmt = db.prepare(`
-      INSERT INTO activos (
-        codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-        lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
-        pep, estado, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `);
-
-    const insertAdminStmt = db.prepare(`
-      INSERT OR IGNORE INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)
-    `);
-
-    const insertHistorialStmt = db.prepare(`
-      INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    let newId = 0;
-    const tx = db.transaction(() => {
-      const res = insertStmt.run(
+    const newId = await transaction(async () => {
+      const insertResult = await run(`
+        INSERT INTO activos (
+          codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
+          lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+          pep, estado, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `, [
         codigo,
         parseInt(cliente_id, 10),
         hostname.trim(),
@@ -415,26 +378,23 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
         soporte_n1 === 'SI' ? 'SI' : 'NO',
         pep ? pep.trim() : null,
         estado === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO'
-      );
-      newId = Number(res.lastInsertRowid);
+      ]);
+
+      const insertedId = insertResult.lastInsertRowid;
 
       if (Array.isArray(administradores_ids)) {
         for (const adminId of administradores_ids) {
-          insertAdminStmt.run(newId, parseInt(adminId, 10));
+          await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [insertedId, parseInt(adminId, 10)]);
         }
       }
 
-      insertHistorialStmt.run(
-        newId,
-        req.user?.id || null,
-        userName,
-        'Creación',
-        null,
-        `Activo creado exitosamente (${codigo})`
-      );
-    });
+      await run(`
+        INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [insertedId, req.user?.id || null, userName, 'Creación', null, `Activo creado exitosamente (${codigo})`]);
 
-    tx();
+      return insertedId;
+    });
 
     return res.status(201).json({ id: newId, codigo, message: 'Activo creado con éxito' });
   } catch (error: any) {
@@ -463,7 +423,7 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       estado
     } = req.body;
 
-    const old = db.prepare('SELECT * FROM activos WHERE id = ?').get(id) as any;
+    const old = await getOne('SELECT * FROM activos WHERE id = ?', [id]);
     if (!old) {
       return res.status(404).json({ error: 'Activo no encontrado' });
     }
@@ -474,30 +434,27 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
     const inicioParsed = inicio_gestion ? parseExcelDate(inicio_gestion) : old.inicio_gestion;
     const finParsed = fin_gestion ? parseExcelDate(fin_gestion) : old.fin_gestion;
 
-    const insertHistorialStmt = db.prepare(`
-      INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    const tx = db.transaction(() => {
-      // Record changes in audit history
-      const checkDiff = (field: string, oldVal: any, newVal: any) => {
+    await transaction(async () => {
+      const checkDiff = async (field: string, oldVal: any, newVal: any) => {
         if (newVal !== undefined && String(oldVal || '') !== String(newVal || '')) {
-          insertHistorialStmt.run(old.id, userId, userName, field, String(oldVal || 'N/A'), String(newVal || 'N/A'));
+          await run(`
+            INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `, [old.id, userId, userName, field, String(oldVal || 'N/A'), String(newVal || 'N/A')]);
         }
       };
 
-      checkDiff('Hostname', old.hostname, hostname);
-      checkDiff('Serial Number', old.serial_number, serial_number);
-      checkDiff('IP/URL Gestión', old.ip_url_gestion, ip_url_gestion);
-      checkDiff('Cogestión', old.cogestion, cogestion);
-      checkDiff('Soporte N1', old.soporte_n1, soporte_n1);
-      checkDiff('Correo Soporte', old.correo_soporte, correo_soporte);
-      checkDiff('Inicio Gestión', old.inicio_gestion, inicioParsed);
-      checkDiff('Fin Gestión', old.fin_gestion, finParsed);
-      checkDiff('Estado', old.estado, estado);
+      await checkDiff('Hostname', old.hostname, hostname);
+      await checkDiff('Serial Number', old.serial_number, serial_number);
+      await checkDiff('IP/URL Gestión', old.ip_url_gestion, ip_url_gestion);
+      await checkDiff('Cogestión', old.cogestion, cogestion);
+      await checkDiff('Soporte N1', old.soporte_n1, soporte_n1);
+      await checkDiff('Correo Soporte', old.correo_soporte, correo_soporte);
+      await checkDiff('Inicio Gestión', old.inicio_gestion, inicioParsed);
+      await checkDiff('Fin Gestión', old.fin_gestion, finParsed);
+      await checkDiff('Estado', old.estado, estado);
 
-      db.prepare(`
+      await run(`
         UPDATE activos SET
           cliente_id = COALESCE(?, cliente_id),
           hostname = COALESCE(?, hostname),
@@ -514,7 +471,7 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
           estado = COALESCE(?, estado),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(
+      `, [
         cliente_id ? parseInt(cliente_id, 10) : null,
         hostname ? hostname.trim() : null,
         serial_number ? serial_number.trim() : null,
@@ -529,20 +486,19 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
         pep,
         estado,
         old.id
-      );
+      ]);
 
-      // Update administrators if provided
       if (Array.isArray(administradores_ids)) {
-        db.prepare('DELETE FROM activo_administrador WHERE activo_id = ?').run(old.id);
-        const insertAdminStmt = db.prepare('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)');
+        await run('DELETE FROM activo_administrador WHERE activo_id = ?', [old.id]);
         for (const adminId of administradores_ids) {
-          insertAdminStmt.run(old.id, parseInt(adminId, 10));
+          await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [old.id, parseInt(adminId, 10)]);
         }
-        insertHistorialStmt.run(old.id, userId, userName, 'Administradores', 'Modificados', 'Lista actualizada');
+        await run(`
+          INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [old.id, userId, userName, 'Administradores', 'Modificados', 'Lista actualizada']);
       }
     });
-
-    tx();
 
     return res.json({ message: 'Activo actualizado con éxito' });
   } catch (error: any) {
@@ -560,7 +516,7 @@ export async function cambiarEstado(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'Estado inválido. Debe ser ACTIVO o INACTIVO.' });
     }
 
-    const activo = db.prepare('SELECT id, codigo, estado FROM activos WHERE id = ?').get(id) as any;
+    const activo = await getOne('SELECT id, codigo, estado FROM activos WHERE id = ?', [id]);
     if (!activo) {
       return res.status(404).json({ error: 'Activo no encontrado' });
     }
@@ -569,14 +525,14 @@ export async function cambiarEstado(req: AuthenticatedRequest, res: Response) {
     const userName = req.user?.nombre || 'Usuario';
     const userId = req.user?.id || null;
 
-    db.prepare(`
+    await run(`
       UPDATE activos SET estado = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(nuevo_estado, activo.id);
+    `, [nuevo_estado, activo.id]);
 
-    db.prepare(`
+    await run(`
       INSERT INTO historial_activo (activo_id, usuario_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
-      VALUES (?, ?, ?, 'Estado', ?, ?)
-    `).run(activo.id, userId, userName, estadoAnterior, nuevo_estado);
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [activo.id, userId, userName, 'Estado', estadoAnterior, nuevo_estado]);
 
     return res.json({
       message: `Activo ${activo.codigo} cambiado a ${nuevo_estado} exitosamente`,
@@ -590,12 +546,12 @@ export async function cambiarEstado(req: AuthenticatedRequest, res: Response) {
 export async function deleteActivo(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const activo = db.prepare('SELECT id, codigo FROM activos WHERE id = ?').get(id) as any;
+    const activo = await getOne('SELECT id, codigo FROM activos WHERE id = ?', [id]);
     if (!activo) {
       return res.status(404).json({ error: 'Activo no encontrado' });
     }
 
-    db.prepare('DELETE FROM activos WHERE id = ?').run(activo.id);
+    await run('DELETE FROM activos WHERE id = ?', [activo.id]);
 
     return res.json({ message: `Activo ${activo.codigo} eliminado correctamente` });
   } catch (error: any) {

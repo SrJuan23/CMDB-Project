@@ -40,6 +40,7 @@ build/
 *.db
 *.sqlite-shm
 *.sqlite-wal
+*.dump
 data/cmdb.sqlite
 backend/data/cmdb.sqlite
 

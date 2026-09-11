@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET: string = process.env.JWT_SECRET || 'ttech_cmdb_secure_jwt_secret_token_2026_key';
+const JWT_SECRET: string = process.env.JWT_SECRET || '';
 
 export interface AuthUser {
   id: number;
@@ -50,3 +50,4 @@ export function requireRole(...allowedRoles: ('ADMIN' | 'GESTOR' | 'CONSULTA')[]
     next();
   };
 }
+

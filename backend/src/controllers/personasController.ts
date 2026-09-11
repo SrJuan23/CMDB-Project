@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { db } from '../db/database';
+import { getOne, getAll, run } from '../db/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { calculateVigencia, formatDateSpanish } from '../services/vigenciaService';
 
@@ -16,18 +16,18 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
     }
 
     query += ' ORDER BY nombre ASC';
-    const personas = db.prepare(query).all(...params) as any[];
+    const personas = await getAll(query, params);
 
-    const configRow = db.prepare("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'").get() as any;
+    const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    const allActivos = db.prepare(`
+    const allActivos = await getAll(`
       SELECT 
         a.id, a.estado, a.fin_gestion, a.lider_id,
         aa.persona_id AS admin_id
       FROM activos a
       LEFT JOIN activo_administrador aa ON a.id = aa.activo_id
-    `).all() as any[];
+    `);
 
     const enriched = personas.map(p => {
       let liderTotal = 0;
@@ -42,7 +42,6 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
       let adminVencidos = 0;
       let adminProximos = 0;
 
-      // Group by asset ID to avoid counting duplicates from joins
       const seenLiderAssets = new Set<number>();
       const seenAdminAssets = new Set<number>();
 
@@ -84,7 +83,6 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
           vencidos: adminVencidos,
           proximos: adminProximos
         },
-        // Combined convenience counts depending on primary role
         total_activos: p.tipo === 'LIDER' ? liderTotal : adminTotal,
         activos_count: p.tipo === 'LIDER' ? liderActivos : adminActivos,
         inactivos_count: p.tipo === 'LIDER' ? liderInactivos : adminInactivos,
@@ -102,19 +100,18 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
 export async function getPersonaActivos(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(id) as any;
+    const persona = await getOne('SELECT * FROM personas WHERE id = ?', [id]);
     if (!persona) {
       return res.status(404).json({ error: 'Persona no encontrada' });
     }
 
-    // Retrieve assets where this person is Leader OR Administrator
-    const activos = db.prepare(`
+    const activos = await getAll(`
       SELECT 
         a.*,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         l.nombre AS lider_nombre,
-        GROUP_CONCAT(DISTINCT adm.nombre) AS administradores_nombres
+        STRING_AGG(DISTINCT adm.nombre) AS administradores_nombres
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -124,7 +121,7 @@ export async function getPersonaActivos(req: AuthenticatedRequest, res: Response
       WHERE a.lider_id = ? OR a.id IN (SELECT activo_id FROM activo_administrador WHERE persona_id = ?)
       GROUP BY a.id
       ORDER BY a.estado ASC, a.hostname ASC
-    `).all(id, id) as any[];
+    `, [id, id]);
 
     const enriched = activos.map(a => ({
       ...a,
@@ -148,12 +145,12 @@ export async function createPersona(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'El nombre es obligatorio' });
     }
 
-    const resDb = db.prepare('INSERT INTO personas (nombre, email, tipo, estado) VALUES (?, ?, ?, ?)').run(
+    const resDb = await run('INSERT INTO personas (nombre, email, tipo, estado) VALUES (?, ?, ?, ?)', [
       nombre.trim(),
       email ? email.trim() : null,
       tipo,
       estado
-    );
+    ]);
 
     return res.status(201).json({ id: resDb.lastInsertRowid, message: 'Persona creada con éxito' });
   } catch (error: any) {
@@ -166,14 +163,14 @@ export async function updatePersona(req: AuthenticatedRequest, res: Response) {
     const { id } = req.params;
     const { nombre, email, tipo, estado } = req.body;
 
-    db.prepare(`
+    await run(`
       UPDATE personas SET
         nombre = COALESCE(?, nombre),
         email = COALESCE(?, email),
         tipo = COALESCE(?, tipo),
         estado = COALESCE(?, estado)
       WHERE id = ?
-    `).run(nombre ? nombre.trim() : null, email ? email.trim() : null, tipo, estado, id);
+    `, [nombre ? nombre.trim() : null, email ? email.trim() : null, tipo, estado, id]);
 
     return res.json({ message: 'Persona actualizada con éxito' });
   } catch (error: any) {
@@ -184,8 +181,10 @@ export async function updatePersona(req: AuthenticatedRequest, res: Response) {
 export async function deletePersona(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const asLider = (db.prepare('SELECT COUNT(*) as count FROM activos WHERE lider_id = ?').get(id) as any).count;
-    const asAdmin = (db.prepare('SELECT COUNT(*) as count FROM activo_administrador WHERE persona_id = ?').get(id) as any).count;
+    const asLiderRow = await getOne('SELECT COUNT(*) as count FROM activos WHERE lider_id = ?', [id]);
+    const asAdminRow = await getOne('SELECT COUNT(*) as count FROM activo_administrador WHERE persona_id = ?', [id]);
+    const asLider = asLiderRow ? asLiderRow.count : 0;
+    const asAdmin = asAdminRow ? asAdminRow.count : 0;
 
     if (asLider > 0 || asAdmin > 0) {
       return res.status(400).json({
@@ -193,7 +192,7 @@ export async function deletePersona(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    db.prepare('DELETE FROM personas WHERE id = ?').run(id);
+    await run('DELETE FROM personas WHERE id = ?', [id]);
     return res.json({ message: 'Persona eliminada con éxito' });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

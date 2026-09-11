@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { parseExcelBuffer, commitExcelImport, exportActivosToExcel, exportActivosToCSV } from '../services/excelService';
-import { db } from '../db/database';
+import { getAll } from '../db/database';
 import { calculateVigencia } from '../services/vigenciaService';
 
 export const upload = multer({ storage: multer.memoryStorage() });
@@ -16,7 +16,6 @@ export async function previewExcel(req: AuthenticatedRequest, res: Response) {
     if (req.file) {
       buffer = req.file.buffer;
     } else {
-      // Default file check
       const defaultPath = path.resolve(__dirname, '../../../data/CMDB_Soporte.xlsx');
       const altPath = path.resolve(__dirname, '../../data/CMDB_Soporte.xlsx');
       const chosenPath = fs.existsSync(defaultPath) ? defaultPath : (fs.existsSync(altPath) ? altPath : null);
@@ -30,7 +29,7 @@ export async function previewExcel(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'No se ha proporcionado ningún archivo Excel ni se encontró el archivo base.' });
     }
 
-    const preview = parseExcelBuffer(buffer);
+    const preview = await parseExcelBuffer(buffer);
 
     return res.json({
       total_encontrados: preview.total_encontrados,
@@ -39,7 +38,7 @@ export async function previewExcel(req: AuthenticatedRequest, res: Response) {
       nuevos: preview.nuevos,
       posibles_duplicados: preview.posibles_duplicados,
       errores_count: preview.errores_count,
-      detalles: preview.detalles.slice(0, 50), // first 50 for preview table
+      detalles: preview.detalles.slice(0, 50),
       errores: preview.errores.slice(0, 20)
     });
   } catch (error: any) {
@@ -67,9 +66,9 @@ export async function executeImport(req: AuthenticatedRequest, res: Response) {
       return res.status(400).json({ error: 'No se encontró el archivo a importar.' });
     }
 
-    const preview = parseExcelBuffer(buffer);
+    const preview = await parseExcelBuffer(buffer);
     const userName = req.user?.nombre || 'Usuario';
-    const result = commitExcelImport(preview.detalles, userName);
+    const result = await commitExcelImport(preview.detalles, userName);
 
     return res.json({
       message: 'Importación procesada con éxito',
@@ -108,7 +107,7 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         l.nombre AS lider_nombre,
-        GROUP_CONCAT(DISTINCT adm.nombre) AS administradores
+        STRING_AGG(DISTINCT adm.nombre) AS administradores
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -172,13 +171,12 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
     query += ` GROUP BY a.id`;
 
     if (administrador_id) {
-      query += ` HAVING ',' || GROUP_CONCAT(DISTINCT adm.id) || ',' LIKE ?`;
+      query += ` HAVING ',' || STRING_AGG(DISTINCT adm.id) || ',' LIKE ?`;
       params.push(`%,${administrador_id},%`);
     }
 
-    const rawRows = db.prepare(query).all(...params) as any[];
+    const rawRows = await getAll(query, params);
 
-    // In-memory vigencia filter
     let filtered = rawRows;
     if (vigencia || dias_rango) {
       filtered = rawRows.filter(row => {

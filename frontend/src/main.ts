@@ -197,16 +197,16 @@ function showLogin() {
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Contraseña</label>
-            <input type="password" id="login-password" required value="Admin123!*" class="cmdb-input" placeholder="••••••••" />
+            <input type="password" id="login-password" required value="" class="cmdb-input" placeholder="••••••••" />
           </div>
           <button type="submit" class="btn-primary w-full">Iniciar Sesión</button>
         </form>
 
         <div class="mt-6 pt-4 border-t border-[#EDF0FF] text-xs text-slate-500 space-y-1 font-body">
           <div class="font-bold text-[#19255A]">Usuarios de prueba:</div>
-          <div class="flex justify-between"><span>ADMIN:</span> <span class="font-mono">admin@ttech.com (Admin123!*)</span></div>
-          <div class="flex justify-between"><span>GESTOR:</span> <span class="font-mono">gestor@ttech.com (Gestor123!*)</span></div>
-          <div class="flex justify-between"><span>CONSULTA:</span> <span class="font-mono">consulta@ttech.com (Consulta123!*)</span></div>
+          <div class="flex justify-between"><span>ADMIN:</span> <span class="font-mono">admin@ttech.com</span></div>
+          <div class="flex justify-between"><span>GESTOR:</span> <span class="font-mono">gestor@ttech.com</span></div>
+          <div class="flex justify-between"><span>CONSULTA:</span> <span class="font-mono">consulta@ttech.com</span></div>
         </div>
 
         <p class="text-center text-xs text-slate-400 mt-6 font-body">Suite Corporativa TTECH v2.4</p>
@@ -1473,3 +1473,4 @@ function initDashboardSortable() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+

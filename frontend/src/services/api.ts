@@ -178,7 +178,7 @@ export const api = {
     return request(`/plataformas/${id}/activos`);
   },
 
-  async createPlataforma(data: { nombre: string; descripcion?: string }): Promise<any> {
+  async createPlataforma(data: { nombre: string; sku?: string | null; descripcion?: string | null }): Promise<any> {
     return request('/plataformas', {
       method: 'POST',
       body: JSON.stringify(data)

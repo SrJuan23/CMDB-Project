@@ -1,5 +1,5 @@
 import xlsx from 'xlsx';
-import { db } from '../db/database';
+import { getOne, getAll, run, transaction } from '../db/database';
 import { parseExcelDate, calculateVigencia } from './vigenciaService';
 
 export interface ExcelRowParsed {
@@ -47,13 +47,12 @@ function parseAdmins(val: any): string[] {
   return str.split(/[,;/]+/).map(s => s.replace(/\s+/g, ' ').trim()).filter(s => s.length > 0);
 }
 
-export function parseExcelBuffer(buffer: Buffer): ImportPreviewResult {
+export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewResult> {
   const wb = xlsx.read(buffer, { type: 'buffer' });
   const rowsParsed: ExcelRowParsed[] = [];
   const errores: { fila: number; hoja: string; error: string }[] = [];
 
-  // Existing serial numbers in database
-  const existingRows = db.prepare('SELECT id, codigo, serial_number, hostname FROM activos').all() as {
+  const existingRows = await getAll('SELECT id, codigo, serial_number, hostname FROM activos') as {
     id: number;
     codigo: string;
     serial_number: string;
@@ -72,21 +71,18 @@ export function parseExcelBuffer(buffer: Buffer): ImportPreviewResult {
     const isActivoSheet = sheetName.toUpperCase().includes('ACTIVO') && !sheetName.toUpperCase().includes('INACTIVO');
     const isInactivoSheet = sheetName.toUpperCase().includes('INACTIVO');
     
-    // Default state based on sheet name
     const defaultEstado: 'ACTIVO' | 'INACTIVO' = isInactivoSheet ? 'INACTIVO' : 'ACTIVO';
 
     const ws = wb.Sheets[sheetName];
     const data: any[] = xlsx.utils.sheet_to_json(ws);
 
     data.forEach((row, idx) => {
-      const rowNum = idx + 2; // header is row 1
+      const rowNum = idx + 2;
       const rowErrors: string[] = [];
 
-      // Flexible column getter to handle whitespace and slight differences
       const getVal = (possibleKeys: string[]): any => {
         for (const k of possibleKeys) {
           if (row[k] !== undefined && row[k] !== null) return row[k];
-          // Try case insensitive match
           const found = Object.keys(row).find(
             actualKey => actualKey.replace(/\s+/g, ' ').trim().toLowerCase() === k.replace(/\s+/g, ' ').trim().toLowerCase()
           );
@@ -123,7 +119,6 @@ export function parseExcelBuffer(buffer: Buffer): ImportPreviewResult {
       const finGestion = parseExcelDate(finRaw);
 
       if (!cliente && !hostname && !serial) {
-        // empty row, ignore
         return;
       }
 
@@ -194,159 +189,133 @@ export function parseExcelBuffer(buffer: Buffer): ImportPreviewResult {
   };
 }
 
-export function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 'Sistema / Importación'): {
+export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 'Sistema / Importación'): Promise<{
   importados: number;
   actualizados: number;
   errores: string[];
-} {
+}> {
   let importados = 0;
   let actualizados = 0;
   const errores: string[] = [];
 
-  const getOrCreateCliente = (nombre: string): number => {
+  const getOrCreateCliente = async (nombre: string): Promise<number> => {
     const clean = cleanString(nombre);
-    let row = db.prepare('SELECT id FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number } | undefined;
+    let row = await getOne('SELECT id FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
     if (row) return row.id;
     try {
-      const res = db.prepare('INSERT INTO clientes (nombre, estado) VALUES (?, ?)').run(clean, 'ACTIVO');
-      return Number(res.lastInsertRowid);
+      const res = await run('INSERT INTO clientes (nombre, estado) VALUES (?, ?)', [clean, 'ACTIVO']);
+      return res.lastInsertRowid;
     } catch {
-      const found = db.prepare('SELECT id FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number };
-      return found.id;
+      const found = await getOne('SELECT id FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
+      return found!.id;
     }
   };
 
-  const getOrCreatePlataforma = (nombre: string): number => {
+  const getOrCreatePlataforma = async (nombre: string): Promise<number> => {
     const clean = cleanString(nombre);
-    let row = db.prepare('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number } | undefined;
+    let row = await getOne('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
     if (row) return row.id;
     try {
-      const res = db.prepare('INSERT INTO plataformas (nombre, estado) VALUES (?, ?)').run(clean, 'ACTIVO');
-      return Number(res.lastInsertRowid);
+      const res = await run('INSERT INTO plataformas (nombre, estado) VALUES (?, ?)', [clean, 'ACTIVO']);
+      return res.lastInsertRowid;
     } catch {
-      const found = db.prepare('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number };
-      return found.id;
+      const found = await getOne('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
+      return found!.id;
     }
   };
 
-  const getOrCreatePersona = (nombre: string, tipo: 'LIDER' | 'ADMINISTRADOR' | 'AMBOS'): number => {
+  const getOrCreatePersona = async (nombre: string, tipo: 'LIDER' | 'ADMINISTRADOR' | 'AMBOS'): Promise<number> => {
     const clean = cleanString(nombre);
-    let row = db.prepare('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number; tipo: string } | undefined;
+    let row = await getOne('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
     if (row) {
       if (row.tipo !== 'AMBOS' && row.tipo !== tipo) {
-        db.prepare('UPDATE personas SET tipo = ? WHERE id = ?').run('AMBOS', row.id);
+        await run('UPDATE personas SET tipo = ? WHERE id = ?', ['AMBOS', row.id]);
       }
       return row.id;
     }
     try {
-      const res = db.prepare('INSERT INTO personas (nombre, tipo, estado) VALUES (?, ?, ?)').run(clean, tipo, 'ACTIVO');
-      return Number(res.lastInsertRowid);
+      const res = await run('INSERT INTO personas (nombre, tipo, estado) VALUES (?, ?, ?)', [clean, tipo, 'ACTIVO']);
+      return res.lastInsertRowid;
     } catch {
-      const found = db.prepare('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)').get(clean) as { id: number; tipo: string };
-      if (found.tipo !== 'AMBOS' && found.tipo !== tipo) {
-        db.prepare('UPDATE personas SET tipo = ? WHERE id = ?').run('AMBOS', found.id);
+      const found = await getOne('SELECT id, tipo FROM personas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
+      if (found!.tipo !== 'AMBOS' && found!.tipo !== tipo) {
+        await run('UPDATE personas SET tipo = ? WHERE id = ?', ['AMBOS', found!.id]);
       }
-      return found.id;
+      return found!.id;
     }
   };
 
-  // Get next sequential ID for ACT-000001
-  const getLastCodeNum = (): number => {
-    const row = db.prepare("SELECT MAX(CAST(SUBSTR(codigo, 5) AS INTEGER)) as max_num FROM activos WHERE codigo LIKE 'ACT-%'").get() as { max_num: number | null };
+  const getLastCodeNum = async (): Promise<number> => {
+    const row = await getOne("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS INTEGER)) as max_num FROM activos WHERE codigo LIKE 'ACT-%'");
     return row?.max_num || 0;
   };
 
-  let nextCodeNum = getLastCodeNum();
+  const nextCodeNum = await getLastCodeNum();
 
-  const insertActivoStmt = db.prepare(`
-    INSERT INTO activos (
-      codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-      lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
-      pep, estado, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `);
-
-  const insertAdminRelationStmt = db.prepare(`
-    INSERT OR IGNORE INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)
-  `);
-
-  const insertHistorialStmt = db.prepare(`
-    INSERT INTO historial_activo (activo_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  const tx = db.transaction(() => {
+  await transaction(async () => {
     for (const row of rows) {
       try {
-        const clienteId = getOrCreateCliente(row.cliente);
-        const plataformaId = getOrCreatePlataforma(row.plataforma);
+        const clienteId = await getOrCreateCliente(row.cliente);
+        const plataformaId = await getOrCreatePlataforma(row.plataforma);
         let liderId: number | null = null;
         if (row.lider && row.lider !== 'Sin asignar') {
-          liderId = getOrCreatePersona(row.lider, 'LIDER');
+          liderId = await getOrCreatePersona(row.lider, 'LIDER');
         }
 
-        // Check if existing by serial number
-        const existing = db.prepare('SELECT id, codigo, estado FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)').get(row.serial_number.trim()) as {
-          id: number;
-          codigo: string;
-          estado: string;
-        } | undefined;
+        const existing = await getOne('SELECT id, codigo, estado FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)', [row.serial_number.trim()]);
 
         if (existing) {
-          // Update existing asset
-          db.prepare(`
+          await run(`
             UPDATE activos SET
               cliente_id = ?, hostname = ?, plataforma_id = ?, ip_url_gestion = ?,
               lider_id = ?, cogestion = ?, inicio_gestion = ?, fin_gestion = ?,
               correo_soporte = ?, soporte_n1 = ?, pep = ?, estado = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-          `).run(
+          `, [
             clienteId, row.hostname, plataformaId, row.ip_url_gestion,
             liderId, row.cogestion, row.inicio_gestion, row.fin_gestion,
             row.correo_soporte, row.soporte_n1, row.pep, row.estado, existing.id
-          );
+          ]);
 
-          // Update admins
-          db.prepare('DELETE FROM activo_administrador WHERE activo_id = ?').run(existing.id);
+          await run('DELETE FROM activo_administrador WHERE activo_id = ?', [existing.id]);
           for (const adminName of row.administradores) {
-            const adminId = getOrCreatePersona(adminName, 'ADMINISTRADOR');
-            insertAdminRelationStmt.run(existing.id, adminId);
+            const adminId = await getOrCreatePersona(adminName, 'ADMINISTRADOR');
+            await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [existing.id, adminId]);
           }
 
-          insertHistorialStmt.run(
-            existing.id,
-            usuarioNombre,
-            'Importación Excel',
-            'Registro previo',
-            `Actualizado desde hoja ${row.sheet_name}`
-          );
+          await run(`
+            INSERT INTO historial_activo (activo_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
+            VALUES (?, ?, ?, ?, ?)
+          `, [existing.id, usuarioNombre, 'Importación Excel', 'Registro previo', `Actualizado desde hoja ${row.sheet_name}`]);
 
           actualizados++;
         } else {
-          // Insert new asset
-          nextCodeNum++;
-          const codigo = `ACT-${String(nextCodeNum).padStart(6, '0')}`;
+          const nextNum = nextCodeNum + importados + actualizados + 1;
+          const codigo = `ACT-${String(nextNum).padStart(6, '0')}`;
 
-          const res = insertActivoStmt.run(
+          const res = await run(`
+            INSERT INTO activos (
+              codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
+              lider_id, cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+              pep, estado, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `, [
             codigo, clienteId, row.hostname, row.serial_number, plataformaId,
             row.ip_url_gestion, liderId, row.cogestion, row.inicio_gestion,
             row.fin_gestion, row.correo_soporte, row.soporte_n1, row.pep, row.estado
-          );
+          ]);
 
-          const newId = Number(res.lastInsertRowid);
+          const newId = res.lastInsertRowid;
 
           for (const adminName of row.administradores) {
-            const adminId = getOrCreatePersona(adminName, 'ADMINISTRADOR');
-            insertAdminRelationStmt.run(newId, adminId);
+            const adminId = await getOrCreatePersona(adminName, 'ADMINISTRADOR');
+            await run('INSERT INTO activo_administrador (activo_id, persona_id) VALUES (?, ?)', [newId, adminId]);
           }
 
-          insertHistorialStmt.run(
-            newId,
-            usuarioNombre,
-            'Creación',
-            null,
-            `Creado vía importación Excel (${codigo})`
-          );
+          await run(`
+            INSERT INTO historial_activo (activo_id, usuario_nombre, campo, valor_anterior, valor_nuevo)
+            VALUES (?, ?, ?, ?, ?)
+          `, [newId, usuarioNombre, 'Creación', null, `Creado vía importación Excel (${codigo})`]);
 
           importados++;
         }
@@ -355,8 +324,6 @@ export function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 'Siste
       }
     }
   });
-
-  tx();
 
   return { importados, actualizados, errores };
 }

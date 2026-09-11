@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { db } from '../db/database';
+import { getAll } from '../db/database';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 export async function getHistorial(req: AuthenticatedRequest, res: Response) {
@@ -42,7 +42,7 @@ export async function getHistorial(req: AuthenticatedRequest, res: Response) {
 
     query += ` ORDER BY h.id DESC`;
 
-    const all = db.prepare(query).all(...params) as any[];
+    const all = await getAll(query, params);
     const total = all.length;
 
     const pageNum = parseInt(page, 10);

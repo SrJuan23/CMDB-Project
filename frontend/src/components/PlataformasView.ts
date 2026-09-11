@@ -19,11 +19,12 @@ export function renderPlataformasView(plataformas: Plataforma[]): string {
           <div class="md:col-span-3 cmdb-card p-8 text-center text-slate-400 font-body">No hay plataformas registradas.</div>
         ` : plataformas.map(p => `
           <div class="cmdb-card-interactive p-5">
-            <div class="flex items-start justify-between mb-2">
-              <h3 class="text-sm font-bold text-[#19255A] font-heading leading-tight pr-2">${p.nombre}</h3>
-              <span class="${p.estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo'} text-[10px]">${p.estado}</span>
-            </div>
-            ${p.descripcion ? `<p class="text-xs text-slate-500 font-body mb-3 line-clamp-2">${p.descripcion}</p>` : ''}
+        ${p.sku ? `<span class="text-xs font-mono text-[#0945F7] bg-[#EDF0FF] px-2 py-0.5 rounded font-heading">${p.sku}</span>` : ''}
+        <div class="flex items-start justify-between mb-2">
+          <h3 class="text-sm font-bold text-[#19255A] font-heading leading-tight pr-2">${p.nombre}</h3>
+          <span class="${p.estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo'} text-[10px]">${p.estado}</span>
+        </div>
+        ${p.descripcion ? `<p class="text-xs text-slate-500 font-body mb-3 line-clamp-2">${p.descripcion}</p>` : ''}
             <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-[#EDF0FF]">
               <div class="text-center">
                 <div class="text-lg font-extrabold text-[#0945F7] font-heading">${p.total_activos || 0}</div>
