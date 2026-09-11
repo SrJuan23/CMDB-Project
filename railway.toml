@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd backend && npm ci --omit=dev && npm run build"
+buildCommand = "cd backend && npm ci && npm run build && npm prune --omit=dev"
 
 [deploy]
 startCommand = "cd backend && npm run start"
