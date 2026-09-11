@@ -96,6 +96,23 @@ export async function initDatabase() {
     const pool = getDb() as Pool;
     await pool.query(PG_SCHEMA);
 
+    // Migration: ensure new columns exist on existing activos tables
+    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
+    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
+    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
+
+    // Migration: drop old personas schema if it exists (from previous versions)
+    await pool.query('DROP TABLE IF EXISTS activo_administrador CASCADE');
+    await pool.query('DROP TABLE IF EXISTS personas CASCADE');
+
+    // Migration: drop old lider_id column if it exists
+    const liderColCheck = await pool.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'activos' AND column_name = 'lider_id'"
+    );
+    if (liderColCheck.rows.length > 0) {
+      await pool.query('ALTER TABLE activos DROP COLUMN IF EXISTS lider_id');
+    }
+
     const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
     if (!config || Number(config.count) === 0) {
       await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
