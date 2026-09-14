@@ -63,7 +63,7 @@ export function initActivoDetailView(activoId: number): void {
             </div>
             <div>
               <div class="text-xs text-slate-500 font-heading mb-0.5">Plataforma</div>
-              <span class="px-2 py-0.5 bg-[#EDF0FF] text-[#0945F7] font-semibold rounded font-heading text-xs">${activo.plataforma_nombre}</span>
+              <span class="px-2 py-0.5 bg-[#EDF0FF] text-[#0945F7] font-semibold rounded font-heading text-xs">${activo.plataforma_sku || activo.plataforma_nombre}</span>
             </div>
             <div>
               <div class="text-xs text-slate-500 font-heading mb-0.5">PEP</div>
@@ -99,10 +99,6 @@ export function initActivoDetailView(activoId: number): void {
         <div class="cmdb-card p-5">
           <h3 class="text-sm font-bold text-[#19255A] font-heading mb-3 uppercase tracking-wide">Administración</h3>
           <div class="space-y-3 text-sm">
-            <div>
-              <div class="text-xs text-slate-500 font-heading mb-0.5">Líder</div>
-              <div class="font-medium text-slate-700">${activo.lider_nombre || 'Sin asignar'}</div>
-            </div>
             <div>
               <div class="text-xs text-slate-500 font-heading mb-0.5">Administrador(es)</div>
               <div class="font-medium text-slate-700">${activo.administradores_str || 'Sin asignar'}</div>

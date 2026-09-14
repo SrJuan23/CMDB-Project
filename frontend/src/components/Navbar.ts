@@ -24,7 +24,7 @@ export function renderNavbar(
           <input 
             id="global-search-input" 
             type="text" 
-            placeholder="Buscar activo, cliente, hostname, serial (ej. FEDRPOTA25000025)..." 
+            placeholder="Buscar activo, cliente, hostname, serial, plataforma o SKU..." 
             class="w-full pl-9 pr-12 py-2 bg-[#F7F8FD] hover:bg-white focus:bg-white border border-[#D7E2FF] rounded-xl text-xs sm:text-sm text-[#19255A] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0945F7] transition-all font-body"
           />
           <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-slate-400 font-mono">↵</span>

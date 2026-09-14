@@ -1,5 +1,4 @@
 import { getDb, getDbType } from './databaseConnection';
-import Database from 'better-sqlite3';
 import { Pool } from 'pg';
 import { exec, getOne, getAll, run, transaction, query } from './queryHelper';
 
@@ -28,7 +27,18 @@ CREATE TABLE IF NOT EXISTS clientes (
 CREATE TABLE IF NOT EXISTS plataformas (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(150) UNIQUE NOT NULL,
+  sku VARCHAR(100),
+  pet VARCHAR(100),
   descripcion TEXT,
+  estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS personas (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(200) NOT NULL,
+  email VARCHAR(200),
+  tipo VARCHAR(20) NOT NULL DEFAULT 'ADMINISTRADOR',
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -49,7 +59,17 @@ CREATE TABLE IF NOT EXISTS activos (
   pep VARCHAR(100),
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  generacion_actas DATE,
+  pet VARCHAR(100),
+  nombre_proyecto VARCHAR(200)
+);
+
+CREATE TABLE IF NOT EXISTS activo_administrador (
+  id SERIAL PRIMARY KEY,
+  activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE(activo_id, persona_id)
 );
 
 CREATE TABLE IF NOT EXISTS historial_activo (
@@ -80,153 +100,46 @@ CREATE TABLE IF NOT EXISTS tickets_relacionados (
 `;
 
 const PG_SCHEMA_INDEXES = `
-CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
-CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
-CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
-CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
-CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
-
-CREATE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku);
+  CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
+  CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
+  CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
+  CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
+  CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
+  CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
+  CREATE INDEX IF NOT EXISTS idx_personas_tipo ON personas(tipo);
+  CREATE INDEX IF NOT EXISTS idx_activo_admin_activo ON activo_administrador(activo_id);
+  CREATE INDEX IF NOT EXISTS idx_activo_admin_persona ON activo_administrador(persona_id);
+  CREATE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku);
+  CREATE INDEX IF NOT EXISTS idx_plataformas_pet ON plataformas(pet);
 `;
 
 export async function initDatabase() {
-  if (getDbType() === 'postgres') {
-    const pool = getDb() as Pool;
-    await pool.query(PG_SCHEMA_TABLES);
+  const pool = getDb() as Pool;
+  await pool.query(PG_SCHEMA_TABLES);
 
-    // Migration: ensure new columns exist on existing tables
-    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
-    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
-    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
-    await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pep VARCHAR(100)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pep VARCHAR(100)');
 
-    // Migration: add sku column to plataformas if it doesn't exist
-    const skuCol = await pool.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'sku'"
-    );
-    if (skuCol.rows.length === 0) {
-      await pool.query('ALTER TABLE plataformas ADD COLUMN sku VARCHAR(100)');
-    }
-
-    // Migration: drop old personas schema if it exists (from previous versions)
-    await pool.query('DROP TABLE IF EXISTS activo_administrador CASCADE');
-    await pool.query('DROP TABLE IF EXISTS personas CASCADE');
-
-    // Migration: drop old lider_id column if it exists
-    const liderCheck = await pool.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'activos' AND column_name = 'lider_id'"
-    );
-    if (liderCheck.rows.length > 0) {
-      await pool.query('ALTER TABLE activos DROP COLUMN IF EXISTS lider_id');
-    }
-
-    await pool.query(PG_SCHEMA_INDEXES);
-
-    const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
-    if (!config || Number(config.count) === 0) {
-      await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
-      await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
-    }
-    return;
+  const skuCol = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'sku'"
+  );
+  if (skuCol.rows.length === 0) {
+    await pool.query('ALTER TABLE plataformas ADD COLUMN sku VARCHAR(100)');
   }
 
-  const db = getDb() as Database.Database;
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      email TEXT UNIQUE COLLATE NOCASE NOT NULL,
-      password_hash TEXT NOT NULL,
-      rol TEXT NOT NULL DEFAULT 'GESTOR',
-      estado TEXT NOT NULL DEFAULT 'ACTIVO',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  const petCol = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'pet'"
+  );
+  if (petCol.rows.length === 0) {
+    await pool.query('ALTER TABLE plataformas ADD COLUMN pet VARCHAR(100)');
+  }
 
-    CREATE TABLE IF NOT EXISTS clientes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT UNIQUE COLLATE NOCASE NOT NULL,
-      contacto TEXT,
-      estado TEXT NOT NULL DEFAULT 'ACTIVO',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  await pool.query(PG_SCHEMA_INDEXES);
 
-    CREATE TABLE IF NOT EXISTS plataformas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT UNIQUE COLLATE NOCASE NOT NULL,
-      sku TEXT UNIQUE COLLATE NOCASE,
-      descripcion TEXT,
-      estado TEXT NOT NULL DEFAULT 'ACTIVO',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS activos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE NOT NULL,
-      cliente_id INTEGER NOT NULL REFERENCES clientes(id),
-      hostname TEXT NOT NULL,
-      serial_number TEXT NOT NULL,
-      plataforma_id INTEGER NOT NULL REFERENCES plataformas(id),
-      ip_url_gestion TEXT NOT NULL,
-      generacion_actas TEXT,
-      pet TEXT,
-      nombre_proyecto TEXT,
-      cogestion TEXT NOT NULL DEFAULT 'NO',
-      inicio_gestion TEXT,
-      fin_gestion TEXT,
-      correo_soporte TEXT,
-      soporte_n1 TEXT NOT NULL DEFAULT 'NO',
-      pep TEXT,
-      estado TEXT NOT NULL DEFAULT 'ACTIVO',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS historial_activo (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE,
-      usuario_id INTEGER REFERENCES usuarios(id),
-      usuario_nombre TEXT NOT NULL,
-      campo TEXT NOT NULL,
-      valor_anterior TEXT,
-      valor_nuevo TEXT,
-      fecha DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS configuracion (
-      clave TEXT PRIMARY KEY,
-      valor TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS tickets_relacionados (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE,
-      ticket_codigo TEXT NOT NULL,
-      titulo TEXT NOT NULL,
-      estado TEXT NOT NULL DEFAULT 'ABIERTO',
-      prioridad TEXT DEFAULT 'MEDIA',
-      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
-    CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
-    CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
-    CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
-    CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
-    CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
-  `);
-
-  db.exec(`
-    CREATE TRIGGER IF NOT EXISTS update_activos_timestamp
-    AFTER UPDATE ON activos
-    FOR EACH ROW
-    BEGIN
-      UPDATE activos SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-    END;
-  `);
-
-  const checkConfig = await getOne('SELECT COUNT(*) as count FROM configuracion');
-  if (!checkConfig || checkConfig.count === 0) {
+  const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
+  if (!config || Number(config.count) === 0) {
     await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
     await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
   }

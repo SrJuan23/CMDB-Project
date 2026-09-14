@@ -3,11 +3,10 @@ import type { NavigationTab } from './Sidebar';
 
 export function renderPersonasView(personas: Persona[], currentTab: NavigationTab): string {
   const filtered = personas.filter(p => {
-    if (currentTab === 'lideres') return p.tipo === 'LIDER' || p.tipo === 'AMBOS';
-    if (currentTab === 'administradores') return p.tipo === 'ADMINISTRADOR' || p.tipo === 'AMBOS';
+    if (currentTab === 'administradores') return p.tipo === 'ADMINISTRADOR';
     return true;
   });
-  const title = currentTab === 'lideres' ? 'Líderes' : 'Administradores';
+  const title = 'Administradores';
 
   return `
     <div class="space-y-5 animate-fadeIn">

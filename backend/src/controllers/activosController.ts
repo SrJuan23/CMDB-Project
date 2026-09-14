@@ -78,11 +78,12 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         a.nombre_proyecto LIKE ? OR
         a.pep LIKE ? OR
         c.nombre LIKE ? OR
-        p.nombre LIKE ?
+        p.nombre LIKE ? OR
+        p.sku LIKE ?
       )`);
       params.push(
         searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
-        searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
+        searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
       );
     }
 

@@ -10,11 +10,10 @@ export function renderActivosView(
   filters: Record<string, string>,
   clientes: Cliente[],
   plataformas: Plataforma[],
-  personas: Persona[]
+  personas: Persona[] = []
 ): string {
   const currentEstado = filters.estado || 'TODOS';
-  const leaders = personas.filter(p => p.tipo === 'LIDER' || p.tipo === 'AMBOS');
-  const admins = personas.filter(p => p.tipo === 'ADMINISTRADOR' || p.tipo === 'AMBOS');
+  const admins = personas.filter(p => p.tipo === 'ADMINISTRADOR');
 
   return `
     <div class="space-y-5 animate-fadeIn">
@@ -125,16 +124,7 @@ export function renderActivosView(
             <label class="block font-bold text-slate-600 font-heading mb-1">Plataforma</label>
             <select id="filter-plataforma" class="cmdb-input text-xs py-1.5">
               <option value="">Todas las plataformas</option>
-              ${plataformas.map(p => `<option value="${p.id}" ${filters.plataforma_id === String(p.id) ? 'selected' : ''}>${p.nombre}</option>`).join('')}
-            </select>
-          </div>
-
-          <!-- Líder Filter -->
-          <div>
-            <label class="block font-bold text-slate-600 font-heading mb-1">Líder</label>
-            <select id="filter-lider" class="cmdb-input text-xs py-1.5">
-              <option value="">Todos los líderes</option>
-              ${leaders.map(l => `<option value="${l.id}" ${filters.lider_id === String(l.id) ? 'selected' : ''}>${l.nombre}</option>`).join('')}
+              ${plataformas.map(p => `<option value="${p.id}" ${filters.plataforma_id === String(p.id) ? 'selected' : ''}>${p.sku ? `${p.sku} - ` : ''}${p.nombre}</option>`).join('')}
             </select>
           </div>
 
@@ -255,8 +245,8 @@ export function renderActivosView(
                 <th class="px-4 py-3 whitespace-nowrap">Hostname</th>
                 <th class="px-4 py-3 whitespace-nowrap">Serial Number</th>
                 <th class="px-4 py-3 whitespace-nowrap">Plataforma</th>
+                <th class="px-4 py-3 whitespace-nowrap">PET / Proyecto</th>
                 <th class="px-4 py-3 whitespace-nowrap">Gestión</th>
-                <th class="px-4 py-3 whitespace-nowrap">Líder</th>
                 <th class="px-4 py-3 whitespace-nowrap">Administrador(es)</th>
                 <th class="px-4 py-3 whitespace-nowrap">Fin Gestión</th>
                 <th class="px-4 py-3 whitespace-nowrap">Vigencia</th>
@@ -316,8 +306,14 @@ export function renderActivosView(
                   <!-- Plataforma -->
                   <td class="px-4 py-3 text-xs whitespace-nowrap">
                     <span class="px-2 py-0.5 bg-[#EDF0FF] text-[#0945F7] font-semibold rounded font-heading text-[11px]">
-                      ${a.plataforma_nombre}
+                      ${a.plataforma_sku ? a.plataforma_sku : a.plataforma_nombre}
                     </span>
+                  </td>
+
+                  <!-- PET / Proyecto -->
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    <div class="font-semibold text-[#19255A]">${a.pet || '—'}</div>
+                    <div class="text-[11px] text-slate-500 max-w-[140px] truncate" title="${a.nombre_proyecto || 'Sin proyecto'}">${a.nombre_proyecto || 'Sin proyecto'}</div>
                   </td>
 
                   <!-- Gestión (IP / URL) (Section 8) -->
@@ -335,11 +331,6 @@ export function renderActivosView(
                     ` : `
                       <span class="text-slate-500 font-mono text-[11px]">${a.ip_url_gestion || 'N/A'}</span>
                     `}
-                  </td>
-
-                  <!-- Líder -->
-                  <td class="px-4 py-3 text-xs text-slate-600 max-w-[130px] truncate whitespace-nowrap" title="${a.lider_nombre || 'Sin asignar'}">
-                    ${a.lider_nombre || '<span class="text-slate-400 italic">Sin asignar</span>'}
                   </td>
 
                   <!-- Administrador -->

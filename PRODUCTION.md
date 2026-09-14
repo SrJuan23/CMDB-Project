@@ -31,22 +31,26 @@ El build del frontend se genera en `frontend/dist/`. El backend sirve automátic
 
 Copiar `backend/.env.example` a `backend/.env` y configurar:
 
-### Desarrollo (SQLite)
+### Desarrollo (PostgreSQL)
 ```env
 NODE_ENV=development
 PORT=5000
-DB_TYPE=sqlite
+PG_HOST=localhost
+PG_PORT=5432
+PG_USER=postgres
+PG_PASSWORD=<contraseña-segura>
+PG_DATABASE=cmdb_ttech
 JWT_SECRET=<clave-secreta-larga-min-64-caracteres>
 JWT_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:5173,http://localhost:3000
 LOG_LEVEL=info
+DEFAULT_EXPIRING_DAYS=30
 ```
 
 ### Producción (PostgreSQL)
 ```env
 NODE_ENV=production
 PORT=5000
-DB_TYPE=postgres
 PG_HOST=localhost
 PG_PORT=5432
 PG_USER=postgres
@@ -95,14 +99,6 @@ pg_dump -U postgres -d cmdb_ttech -F c -f backups/cmdb-backup-$(date +%Y-%m-%d).
 pg_restore -U postgres -d cmdb_ttech backups/cmdb-backup-YYYY-MM-DD.dump
 ```
 
-### SQLite (desarrollo)
-```bash
-cd backend
-npm run backup
-```
-
-Los backups se guardan en `backend/backups/` con retención de 30 días.
-
 ### Backup automático
 
 #### Linux/macOS (cron - PostgreSQL)
@@ -124,9 +120,6 @@ pm2 stop cmdb-backend
 
 # Restaurar backup PostgreSQL
 pg_restore -U postgres -d cmdb_ttech backups/cmdb-backup-YYYY-MM-DD.dump
-
-# Restaurar backup SQLite
-# cp backups/cmdb-backup-YYYY-MM-DDTHH-MM-SSZ.sqlite data/cmdb.sqlite
 
 # Iniciar el backend
 pm2 start cmdb-backend
@@ -210,18 +203,6 @@ pm2 logs cmdb-backend --lines 100
 ```
 
 ### La base de datos está bloqueada
-**SQLite**: SQLite usa WAL mode. Si hay problemas:
-```bash
-# Detener backend
-pm2 stop cmdb-backend
-
-# Eliminar archivos WAL/SHM
-rm data/cmdb.sqlite-wal data/cmdb.sqlite-shm
-
-# Iniciar
-pm2 start cmdb-backend
-```
-
 **PostgreSQL**: Verificar que el servicio esté corriendo:
 ```bash
 sudo systemctl status postgresql

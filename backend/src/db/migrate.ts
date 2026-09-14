@@ -1,88 +1,59 @@
-import { getDb, getDbType } from './databaseConnection';
+import { getDb } from './databaseConnection';
 import { Pool } from 'pg';
-import Database from 'better-sqlite3';
-import { getOne, run } from './queryHelper';
 
 /**
- * Migration script: removes personas/lider schema and adds new columns.
+ * Migration script: ensures new columns/tables exist for PostgreSQL.
  * Run with: npx tsx src/db/migrate.ts
  */
 export async function runMigration() {
   console.log('=== Starting TTECH CMDB Migration ===');
 
-  if (getDbType() === 'postgres') {
-    const pool = getDb() as Pool;
+  const pool = getDb() as Pool;
 
-    // Check if personas table exists (indicates old schema)
-    const personasCheck = await pool.query(
-      "SELECT to_regclass('personas') as exists"
-    );
-    const hasPersonas = personasCheck.rows[0]?.exists !== null;
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pep VARCHAR(100)');
 
-    if (hasPersonas) {
-      console.log('Old schema detected (personas table exists). Running migration...');
-
-      // Add new columns to activos if they don't exist
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
-
-      // Drop old tables that referenced personas
-      await pool.query('DROP TABLE IF EXISTS activo_administrador CASCADE');
-      await pool.query('DROP TABLE IF EXISTS personas CASCADE');
-
-      // Drop old column if it exists
-      const liderCheck = await pool.query(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = 'activos' AND column_name = 'lider_id'"
-      );
-      if (liderCheck.rows.length > 0) {
-        await pool.query('ALTER TABLE activos DROP COLUMN IF EXISTS lider_id');
-      }
-
-      console.log('Migration complete. Personas tables dropped, new columns added.');
-    } else {
-      // Ensure new columns exist even on fresh deployments
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
-      await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
-      console.log('No old schema detected. New columns ensured.');
-    }
-
-    return;
+  const skuPlatCol = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'sku'"
+  );
+  if (skuPlatCol.rows.length === 0) {
+    await pool.query('ALTER TABLE plataformas ADD COLUMN sku VARCHAR(100)');
   }
 
-  // SQLite path
-  const db = getDb() as Database.Database;
-
-  const hasPersonasSqlite = db.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='personas'"
-  ).get();
-
-  if (hasPersonasSqlite) {
-    console.log('Old schema detected (personas table exists). Running migration...');
-
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas TEXT');
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet TEXT');
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto TEXT');
-
-    db.exec('DROP TABLE IF EXISTS activo_administrador');
-    db.exec('DROP TABLE IF EXISTS personas');
-
-    const liderCol = db.prepare(
-      "PRAGMA table_info(activos)"
-    ).all().find((c: any) => c.name === 'lider_id');
-
-    if (liderCol) {
-      console.log('Note: SQLite cannot drop columns easily without table rebuild. lider_id will remain but is unused.');
-    }
-
-    console.log('SQLite migration complete.');
-  } else {
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas TEXT');
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet TEXT');
-    db.exec('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto TEXT');
-    console.log('No old schema detected. New columns ensured.');
+  const petPlatCol = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'pet'"
+  );
+  if (petPlatCol.rows.length === 0) {
+    await pool.query('ALTER TABLE plataformas ADD COLUMN pet VARCHAR(100)');
   }
+
+  const personasCheck = await pool.query("SELECT to_regclass('personas') as exists");
+  if (!personasCheck.rows[0]?.exists) {
+    await pool.query(`CREATE TABLE personas (
+      id SERIAL PRIMARY KEY,
+      nombre VARCHAR(200) NOT NULL,
+      email VARCHAR(200),
+      tipo VARCHAR(20) NOT NULL DEFAULT 'ADMINISTRADOR',
+      estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log('Created personas table');
+  }
+
+  const adminCheck = await pool.query("SELECT to_regclass('activo_administrador') as exists");
+  if (!adminCheck.rows[0]?.exists) {
+    await pool.query(`CREATE TABLE activo_administrador (
+      id SERIAL PRIMARY KEY,
+      activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      UNIQUE(activo_id, persona_id)
+    )`);
+    console.log('Created activo_administrador table');
+  }
+
+  console.log('Migration complete.');
 }
 
 if (require.main === module) {

@@ -66,7 +66,7 @@ async function init() {
   }
 
   const savedTab = localStorage.getItem('cmdb_current_tab');
-  if (savedTab && ['dashboard','activos','clientes','plataformas','lideres','administradores','reportes','historial','configuracion'].includes(savedTab)) {
+  if (savedTab && ['dashboard','activos','clientes','plataformas','administradores','reportes','historial','configuracion'].includes(savedTab)) {
     currentTab = savedTab as NavigationTab;
   }
 
@@ -289,7 +289,6 @@ function renderCurrentView(): string {
       return renderClientesView(allClientes);
     case 'plataformas': 
       return renderPlataformasView(allPlataformas);
-    case 'lideres': 
     case 'administradores': 
       return renderPersonasView(allPersonas, currentTab);
     case 'historial': 
@@ -624,8 +623,7 @@ function showActivoForm(activo?: any) {
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn overflow-y-auto';
 
-  const leaders = allPersonas.filter(p => p.tipo === 'LIDER' || p.tipo === 'AMBOS');
-  const admins = allPersonas.filter(p => p.tipo === 'ADMINISTRADOR' || p.tipo === 'AMBOS');
+  const admins = allPersonas.filter(p => p.tipo === 'ADMINISTRADOR');
   const currentAdminIds = new Set((activo?.administradores || []).map((a: any) => a.id));
 
   modal.innerHTML = `
@@ -665,7 +663,7 @@ function showActivoForm(activo?: any) {
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Plataforma *</label>
             <select id="f-plat" required class="cmdb-input text-xs">
               <option value="">Seleccionar plataforma</option>
-              ${allPlataformas.map(p => `<option value="${p.id}" ${activo?.plataforma_id === p.id ? 'selected' : ''}>${p.nombre}</option>`).join('')}
+              ${allPlataformas.map(p => `<option value="${p.id}" ${activo?.plataforma_id === p.id ? 'selected' : ''}>${p.sku ? `${p.sku} - ` : ''}${p.nombre}</option>`).join('')}
             </select>
           </div>
 
@@ -673,15 +671,6 @@ function showActivoForm(activo?: any) {
           <div class="md:col-span-2">
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">IP / URL de Gestión *</label>
             <input type="text" id="f-url" value="${activo?.ip_url_gestion || ''}" required class="cmdb-input text-xs font-mono" placeholder="Ej: https://192.168.1.1:8443 o IP de administración" />
-          </div>
-
-          <!-- Líder -->
-          <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Líder Asignado</label>
-            <select id="f-lider" class="cmdb-input text-xs">
-              <option value="">Sin asignar</option>
-              ${leaders.map(p => `<option value="${p.id}" ${activo?.lider_id === p.id ? 'selected' : ''}>${p.nombre}</option>`).join('')}
-            </select>
           </div>
 
           <!-- Cogestión -->
@@ -725,6 +714,24 @@ function showActivoForm(activo?: any) {
               <option value="ACTIVO" ${!activo || activo.estado === 'ACTIVO' ? 'selected' : ''}>ACTIVO</option>
               <option value="INACTIVO" ${activo?.estado === 'INACTIVO' ? 'selected' : ''}>INACTIVO</option>
             </select>
+          </div>
+
+          <!-- PET -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">PET</label>
+            <input type="text" id="f-pet" value="${activo?.pet || ''}" class="cmdb-input text-xs" placeholder="PET-001" />
+          </div>
+
+          <!-- Nombre del Proyecto -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Nombre del Proyecto</label>
+            <input type="text" id="f-nombre-proyecto" value="${activo?.nombre_proyecto || ''}" class="cmdb-input text-xs" placeholder="Proyecto X" />
+          </div>
+
+          <!-- Generación de Actas -->
+          <div>
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Generación de Actas</label>
+            <input type="date" id="f-generacion-actas" value="${activo?.generacion_actas || ''}" class="cmdb-input text-xs" />
           </div>
 
           <!-- Código PEP -->
@@ -780,13 +787,15 @@ function showActivoForm(activo?: any) {
       serial_number: (document.getElementById('f-serial') as HTMLInputElement).value,
       plataforma_id: (document.getElementById('f-plat') as HTMLSelectElement).value,
       ip_url_gestion: (document.getElementById('f-url') as HTMLInputElement).value,
-      lider_id: (document.getElementById('f-lider') as HTMLSelectElement).value || null,
       cogestion: (document.getElementById('f-cog') as HTMLSelectElement).value,
       inicio_gestion: (document.getElementById('f-ini') as HTMLInputElement).value || null,
       fin_gestion: (document.getElementById('f-fin') as HTMLInputElement).value || null,
       correo_soporte: (document.getElementById('f-mail') as HTMLInputElement).value || null,
       soporte_n1: (document.getElementById('f-n1') as HTMLSelectElement).value,
       estado: (document.getElementById('f-est') as HTMLSelectElement).value,
+      pet: (document.getElementById('f-pet') as HTMLInputElement).value || null,
+      nombre_proyecto: (document.getElementById('f-nombre-proyecto') as HTMLInputElement).value || null,
+      generacion_actas: (document.getElementById('f-generacion-actas') as HTMLInputElement).value || null,
       pep: (document.getElementById('f-pep') as HTMLInputElement).value || null,
       administradores_ids: checkedAdmins
     };
@@ -880,6 +889,10 @@ function showPlataformaForm(plataforma?: any) {
           <input type="text" id="f-plat-nom" value="${plataforma?.nombre || ''}" required class="cmdb-input text-xs" placeholder="Ej: Fortinet FortiGate, Palo Alto, Cisco" />
         </div>
         <div>
+          <label class="block text-xs font-bold text-slate-600 font-heading mb-1">SKU</label>
+          <input type="text" id="f-plat-sku" value="${plataforma?.sku || ''}" class="cmdb-input text-xs" placeholder="Ej: FG-VM-100, PAN-OS-11" />
+        </div>
+        <div>
           <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Descripción</label>
           <textarea id="f-plat-desc" class="cmdb-input text-xs" rows="3" placeholder="Detalles de la plataforma o versión...">${plataforma?.descripcion || ''}</textarea>
         </div>
@@ -899,9 +912,10 @@ function showPlataformaForm(plataforma?: any) {
 
   modal.querySelector('#plataforma-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const data = { 
-      nombre: (document.getElementById('f-plat-nom') as HTMLInputElement).value.trim(), 
-      descripcion: (document.getElementById('f-plat-desc') as HTMLTextAreaElement).value.trim() 
+    const data = {
+      nombre: (document.getElementById('f-plat-nom') as HTMLInputElement).value.trim(),
+      sku: (document.getElementById('f-plat-sku') as HTMLInputElement).value.trim() || null,
+      descripcion: (document.getElementById('f-plat-desc') as HTMLTextAreaElement).value.trim() || null
     };
     try {
       if (isEdit && plataforma) {
@@ -922,7 +936,7 @@ function showPlataformaForm(plataforma?: any) {
 
 function showPersonaForm(persona?: any) {
   const isEdit = !!persona;
-  const defaultTipo = currentTab === 'lideres' ? 'LIDER' : currentTab === 'administradores' ? 'ADMINISTRADOR' : 'AMBOS';
+  const defaultTipo = 'ADMINISTRADOR';
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn';
   modal.innerHTML = `
@@ -943,9 +957,7 @@ function showPersonaForm(persona?: any) {
         <div>
           <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Rol / Tipo</label>
           <select id="f-per-tipo" class="cmdb-input text-xs">
-            <option value="LIDER" ${(persona?.tipo || defaultTipo) === 'LIDER' ? 'selected' : ''}>Líder Técnico</option>
             <option value="ADMINISTRADOR" ${(persona?.tipo || defaultTipo) === 'ADMINISTRADOR' ? 'selected' : ''}>Administrador</option>
-            <option value="AMBOS" ${(persona?.tipo || defaultTipo) === 'AMBOS' ? 'selected' : ''}>Ambos (Líder y Administrador)</option>
           </select>
         </div>
         <div class="flex justify-end gap-3 pt-2">
@@ -1290,7 +1302,8 @@ function setupGlobalListeners() {
       activosFilters.sort_order = 'desc';
       delete activosFilters.cliente_id;
       delete activosFilters.plataforma_id;
-      delete activosFilters.lider_id;
+      delete activosFilters.cliente_id;
+      delete activosFilters.plataforma_id;
       delete activosFilters.administrador_id;
       delete activosFilters.vigencia;
       delete activosFilters.dias_rango;
@@ -1438,7 +1451,6 @@ function setupGlobalListeners() {
       'filter-sort-order': 'sort_order',
       'filter-cliente': 'cliente_id',
       'filter-plataforma': 'plataforma_id',
-      'filter-lider': 'lider_id',
       'filter-administrador': 'administrador_id',
       'filter-vigencia': 'vigencia',
       'filter-dias-rango': 'dias_rango',
@@ -1477,4 +1489,3 @@ function initDashboardSortable() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-

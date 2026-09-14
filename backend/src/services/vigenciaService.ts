@@ -47,10 +47,16 @@ export function parseExcelDate(val: any): string | null {
   return null;
 }
 
-export function formatDateSpanish(isoDate: string | null): string {
+export function formatDateSpanish(isoDate: string | Date | null): string {
   if (!isoDate) return 'N/A';
-  const parts = isoDate.split('-');
-  if (parts.length !== 3) return isoDate;
+  let dateStr: string;
+  if (isoDate instanceof Date) {
+    dateStr = isoDate.toISOString().split('T')[0];
+  } else {
+    dateStr = isoDate;
+  }
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
   const year = parts[0];
   const monthIdx = parseInt(parts[1], 10) - 1;
   const day = parseInt(parts[2], 10);
@@ -58,7 +64,7 @@ export function formatDateSpanish(isoDate: string | null): string {
   return `${day} ${mes} ${year}`;
 }
 
-export function calculateVigencia(finGestion: string | null, diasThreshold = 30): VigenciaInfo {
+export function calculateVigencia(finGestion: string | Date | null, diasThreshold = 30): VigenciaInfo {
   if (!finGestion) {
     return {
       dias_restantes: null,
@@ -70,8 +76,15 @@ export function calculateVigencia(finGestion: string | null, diasThreshold = 30)
     };
   }
 
+  let finDateStr: string;
+  if (finGestion instanceof Date) {
+    finDateStr = finGestion.toISOString().split('T')[0];
+  } else {
+    finDateStr = finGestion;
+  }
+
   // Parse YYYY-MM-DD as local midnight
-  const [y, m, d] = finGestion.split('-').map(num => parseInt(num, 10));
+  const [y, m, d] = finDateStr.split('-').map(num => parseInt(num, 10));
   const finDate = new Date(y, m - 1, d, 23, 59, 59, 999);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -103,7 +116,7 @@ export function calculateVigencia(finGestion: string | null, diasThreshold = 30)
     texto_vigencia,
     estado_vigencia,
     badge_color,
-    fecha_fin_formateada: formatDateSpanish(finGestion),
+    fecha_fin_formateada: formatDateSpanish(finDateStr),
     fecha_inicio_formateada: 'N/A'
   };
 }

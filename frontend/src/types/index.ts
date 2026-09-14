@@ -28,7 +28,9 @@ export interface Activo {
   serial_number: string;
   plataforma_id: number;
   ip_url_gestion: string;
-  lider_id: number | null;
+  generacion_actas?: string | null;
+  pet?: string | null;
+  nombre_proyecto?: string | null;
   cogestion: 'SI' | 'NO';
   inicio_gestion: string | null;
   fin_gestion: string | null;
@@ -40,7 +42,8 @@ export interface Activo {
   updated_at: string;
   cliente_nombre: string;
   plataforma_nombre: string;
-  lider_nombre: string | null;
+  plataforma_sku: string | null;
+  plataforma_pet: string | null;
   administradores?: PersonaAdmin[];
   administradores_str: string;
   vigencia: VigenciaInfo;
@@ -48,6 +51,7 @@ export interface Activo {
   estado_vigencia: 'VIGENTE' | 'PRÓXIMO A VENCER' | 'VENCIDO' | 'SIN FECHA';
   inicio_gestion_formateada: string;
   fin_gestion_formateada: string;
+  generacion_actas_formateada?: string;
   tickets_relacionados?: any[];
   historial?: any[];
 }
@@ -82,16 +86,9 @@ export interface Persona {
   id: number;
   nombre: string;
   email?: string | null;
-  tipo: 'LIDER' | 'ADMINISTRADOR' | 'AMBOS';
+  tipo: 'ADMINISTRADOR';
   estado: 'ACTIVO' | 'INACTIVO';
   created_at: string;
-  como_lider?: {
-    total: number;
-    activos: number;
-    inactivos: number;
-    vencidos: number;
-    proximos: number;
-  };
   como_administrador?: {
     total: number;
     activos: number;
@@ -143,7 +140,6 @@ export interface DashboardStats {
     clientes: { labels: string[]; data: number[] };
     estados: { labels: string[]; data: number[] };
     vigencias: { labels: string[]; data: number[] };
-    lideres: { labels: string[]; data: number[] };
     administradores: { labels: string[]; data: number[] };
     cogestion: { labels: string[]; data: number[] };
     soporte_n1: { labels: string[]; data: number[] };
@@ -155,7 +151,6 @@ export interface DashboardStats {
     serial_number: string;
     cliente_nombre: string;
     plataforma_nombre: string;
-    lider_nombre: string;
     administradores_str: string;
     fin_gestion: string | null;
     fin_gestion_formateada: string;

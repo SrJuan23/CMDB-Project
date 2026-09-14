@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS personas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(150) UNIQUE NOT NULL,
   email VARCHAR(150) NULL,
-  tipo ENUM('LIDER', 'ADMINISTRADOR', 'AMBOS') NOT NULL DEFAULT 'AMBOS',
+  tipo ENUM('ADMINISTRADOR') NOT NULL DEFAULT 'ADMINISTRADOR',
   estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -47,7 +47,6 @@ CREATE TABLE IF NOT EXISTS activos (
   serial_number VARCHAR(150) NOT NULL,
   plataforma_id INT NOT NULL,
   ip_url_gestion TEXT NOT NULL,
-  lider_id INT NULL,
   cogestion ENUM('SI', 'NO') NOT NULL DEFAULT 'NO',
   inicio_gestion DATE NULL,
   fin_gestion DATE NULL,
@@ -59,11 +58,9 @@ CREATE TABLE IF NOT EXISTS activos (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON UPDATE CASCADE,
   FOREIGN KEY (plataforma_id) REFERENCES plataformas(id) ON UPDATE CASCADE,
-  FOREIGN KEY (lider_id) REFERENCES personas(id) ON DELETE SET NULL ON UPDATE CASCADE,
   INDEX idx_activos_estado (estado),
   INDEX idx_activos_cliente (cliente_id),
   INDEX idx_activos_plataforma (plataforma_id),
-  INDEX idx_activos_lider (lider_id),
   INDEX idx_activos_serial (serial_number),
   INDEX idx_activos_fin_gestion (fin_gestion)
 ) ENGINE=InnoDB;

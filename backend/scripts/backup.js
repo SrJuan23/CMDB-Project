@@ -1,27 +1,31 @@
-import fs from 'fs';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
 
-const DB_PATH = path.resolve(__dirname, '../data/cmdb.sqlite');
 const BACKUP_DIR = path.resolve(__dirname, '../backups');
 const MAX_BACKUPS = 30;
 
-function backupDatabase(): { success: boolean; file: string; error?: string } {
+function backupDatabase() {
   try {
-    if (!fs.existsSync(DB_PATH)) {
-      return { success: false, file: '', error: 'Base de datos no encontrada' };
-    }
-
     if (!fs.existsSync(BACKUP_DIR)) {
       fs.mkdirSync(BACKUP_DIR, { recursive: true });
     }
 
     const dateStr = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-    const backupFile = path.join(BACKUP_DIR, `cmdb-backup-${dateStr}.sqlite`);
+    const backupFile = path.join(BACKUP_DIR, `cmdb-backup-${dateStr}.dump`);
+    const dbHost = process.env.PG_HOST || 'localhost';
+    const dbPort = process.env.PG_PORT || '5432';
+    const dbUser = process.env.PG_USER || 'postgres';
+    const dbName = process.env.PG_DATABASE || 'cmdb_ttech';
+    const dbPassword = process.env.PG_PASSWORD || '';
 
-    fs.copyFileSync(DB_PATH, backupFile);
+    execFileSync('pg_dump', ['-h', dbHost, '-p', dbPort, '-U', dbUser, '-d', dbName, '-Fc', '-f', backupFile], {
+      env: { ...process.env, PGPASSWORD: dbPassword },
+      stdio: 'inherit'
+    });
 
     const backups = fs.readdirSync(BACKUP_DIR)
-      .filter((f) => f.startsWith('cmdb-backup-') && f.endsWith('.sqlite'))
+      .filter((f) => f.startsWith('cmdb-backup-') && f.endsWith('.dump'))
       .sort()
       .reverse();
 
@@ -30,7 +34,7 @@ function backupDatabase(): { success: boolean; file: string; error?: string } {
     }
 
     return { success: true, file: backupFile };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, file: '', error: error.message };
   }
 }

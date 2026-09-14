@@ -21,8 +21,8 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
 
     const totalClientesRow = await getOne('SELECT COUNT(*) as count FROM clientes');
     const totalPlataformasRow = await getOne('SELECT COUNT(*) as count FROM plataformas');
-    const totalClientes = totalClientesRow ? totalClientesRow.count : 0;
-    const totalPlataformas = totalPlataformasRow ? totalPlataformasRow.count : 0;
+    const totalClientes = totalClientesRow ? Number(totalClientesRow.count) : 0;
+    const totalPlataformas = totalPlataformasRow ? Number(totalPlataformasRow.count) : 0;
 
     let activosCount = 0;
     let inactivosCount = 0;
