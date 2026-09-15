@@ -187,10 +187,8 @@ function showLogin() {
     <div class="min-h-screen bg-[#F7F8FD] flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl border border-[#EDF0FF] shadow-lg p-8 w-full max-w-md">
         <div class="text-center mb-8">
-          <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0945F7] to-[#5B53FF] text-white flex items-center justify-center font-bold text-2xl font-heading shadow-lg mx-auto mb-4 ring-2 ring-[#00CDE2]/40">
-            <svg class="w-8 h-8 text-[#00CDE2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
+          <div class="w-48 h-20 rounded-2xl bg-[#19255A] flex items-center justify-center shadow-lg mx-auto mb-4 ring-2 ring-[#00CDE2]/40 px-4">
+            <img src="/img/logo.png" alt="Hiberus CMDB" class="max-w-full max-h-full object-contain" />
           </div>
           <h1 class="text-2xl font-extrabold text-[#19255A] font-heading">Hiberus CMDB</h1>
           <p class="text-sm text-slate-500 font-body mt-1">Plataforma de Gestión de Activos Tecnológicos</p>

@@ -59,17 +59,14 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
     }">
       <!-- Logo Branding Header -->
       <div class="h-16 flex items-center gap-3 px-5 border-b border-[#3B4779]/60">
-        <div class="w-10 h-10 rounded-xl bg-[#0945F7] text-white flex items-center justify-center font-bold text-lg shadow-md shrink-0 ring-2 ring-[#00CDE2]/40">
-          <svg class="w-6 h-6 text-[#00CDE2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-          </svg>
+        <div class="w-10 h-10 rounded-xl bg-[#19255A] flex items-center justify-center shadow-md shrink-0 ring-2 ring-[#00CDE2]/40 p-1">
+          <img src="/img/logo.png" alt="Hiberus CMDB" class="max-w-full max-h-full object-contain" />
         </div>
         ${!isCollapsed ? `
           <div class="overflow-hidden whitespace-nowrap">
             <h1 class="text-base font-extrabold tracking-wide font-heading text-white flex items-center gap-1.5">
               Hiberus <span class="text-[#00CDE2]">CMDB</span>
             </h1>
-            <p class="text-[10px] uppercase font-bold text-[#D7E2FF]/70 tracking-widest font-heading">Asset Management</p>
           </div>
         ` : ''}
       </div>

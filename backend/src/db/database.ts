@@ -164,6 +164,8 @@ export async function initDatabase() {
     await pool.query('DROP TABLE IF EXISTS personas CASCADE');
   }
 
+  await pool.query(PG_SCHEMA_INDEXES);
+
   const skuCol = await pool.query(
     "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'sku'"
   );
@@ -177,8 +179,6 @@ export async function initDatabase() {
   if (petCol.rows.length === 0) {
     await pool.query('ALTER TABLE plataformas ADD COLUMN pet VARCHAR(100)');
   }
-
-  await pool.query(PG_SCHEMA_INDEXES);
 
   const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
   if (!config || Number(config.count) === 0) {
