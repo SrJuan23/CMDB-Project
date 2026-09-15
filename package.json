@@ -1,7 +1,7 @@
 {
-  "name": "cmdb-project-ttech",
+  "name": "cmdb-project-hiberus",
   "version": "1.0.0",
-  "description": "Plataforma empresarial de CMDB y Gestión de Activos Tecnológicos TTECH",
+  "description": "Plataforma empresarial de CMDB y Gestión de Activos Tecnológicos Hiberus",
   "scripts": {
     "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "dev:backend": "cd backend && npm run dev",
@@ -11,8 +11,8 @@
     "start": "cd backend && npm run start",
     "seed": "cd backend && npm run seed"
   },
-  "keywords": ["cmdb", "asset-management", "ciberseguridad", "ttech"],
-  "author": "TTECH",
+  "keywords": ["cmdb", "asset-management", "ciberseguridad", "hiberus"],
+  "author": "Hiberus",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^9.1.2"

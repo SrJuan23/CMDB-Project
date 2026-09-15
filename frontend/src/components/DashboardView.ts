@@ -253,10 +253,6 @@ function renderCharts(stats: DashboardStats) {
           <div class="font-bold text-sm text-[#19255A] font-heading mb-3">Top Clientes con Mayor Volumen de Activos</div>
           <div class="h-64 relative"><canvas id="chart-clientes"></canvas></div>
         </div>
-        <div class="cmdb-card p-5 md:col-span-2">
-          <div class="font-bold text-sm text-[#19255A] font-heading mb-3">Carga de Activos por Administrador</div>
-          <div class="h-64 relative"><canvas id="chart-administradores"></canvas></div>
-        </div>
       </div>
     </div>
   `;
@@ -467,28 +463,4 @@ export function initDashboardCharts(stats: DashboardStats) {
     });
   }
 
-  const ctxAdm = document.getElementById('chart-administradores') as HTMLCanvasElement;
-  if (ctxAdm) {
-    chartInstances['administradores'] = new Chart(ctxAdm, {
-      type: 'bar',
-      data: {
-        labels: stats.graficos.administradores.labels,
-        datasets: [{
-          label: 'Activos Administrados',
-          data: stats.graficos.administradores.data,
-          backgroundColor: '#5B53FF',
-          borderRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, grid: { color: '#F1F5F9' } },
-          x: { grid: { display: false }, ticks: { font: { family: 'Lato', size: 10 } } }
-        }
-      }
-    });
-  }
 }

@@ -15,7 +15,6 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import excelRoutes from './routes/excelRoutes';
 import historialRoutes from './routes/historialRoutes';
 import configRoutes from './routes/configRoutes';
-import personasRoutes from './routes/personasRoutes';
 import usuariosRoutes from './routes/usuariosRoutes';
 
 dotenv.config();
@@ -56,11 +55,10 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/excel', excelRoutes);
 app.use('/api/historial', historialRoutes);
 app.use('/api/config', configRoutes);
-app.use('/api/personas', personasRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), platform: 'TTECH CMDB' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), platform: 'Hiberus CMDB' });
 });
 
 const frontendDist = path.resolve(__dirname, '../../frontend/dist');
@@ -87,7 +85,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 app.listen(PORT, () => {
   console.log(`=========================================`);
-  console.log(`  TTECH CMDB REST API SERVER`);
+  console.log(`  Hiberus CMDB REST API SERVER`);
   console.log(`  Running on: http://localhost:${PORT}`);
   console.log(`  Health:     http://localhost:${PORT}/api/health`);
   console.log(`=========================================`);

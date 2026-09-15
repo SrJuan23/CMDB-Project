@@ -16,7 +16,7 @@ function backupDatabase() {
     const dbHost = process.env.PG_HOST || 'localhost';
     const dbPort = process.env.PG_PORT || '5432';
     const dbUser = process.env.PG_USER || 'postgres';
-    const dbName = process.env.PG_DATABASE || 'cmdb_ttech';
+    const dbName = process.env.PG_DATABASE || 'cmdb_hiberus';
     const dbPassword = process.env.PG_PASSWORD || '';
 
     execFileSync('pg_dump', ['-h', dbHost, '-p', dbPort, '-U', dbUser, '-d', dbName, '-Fc', '-f', backupFile], {

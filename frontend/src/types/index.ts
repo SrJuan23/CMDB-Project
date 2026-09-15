@@ -3,6 +3,9 @@ export interface User {
   nombre: string;
   email: string;
   rol: 'ADMIN' | 'GESTOR' | 'CONSULTA';
+  estado?: 'ACTIVO' | 'INACTIVO';
+  password_change_required?: boolean;
+  created_at?: string;
 }
 
 export interface VigenciaInfo {

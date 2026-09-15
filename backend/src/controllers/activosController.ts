@@ -32,7 +32,13 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         p.sku AS plataforma_sku,
-        p.descripcion AS plataforma_descripcion
+        p.descripcion AS plataforma_descripcion,
+        (
+          SELECT STRING_AGG(u.nombre, ', ' ORDER BY u.nombre)
+          FROM activo_administrador aa
+          JOIN usuarios u ON u.id = aa.usuario_id
+          WHERE aa.activo_id = a.id
+        ) AS administradores_str
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -221,6 +227,13 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
     const historial = await getAll(`
       SELECT * FROM historial_activo WHERE activo_id = ? ORDER BY id DESC
     `, [activo.id]);
+    const administradores = await getAll(`
+      SELECT u.id, u.nombre, u.email
+      FROM activo_administrador aa
+      JOIN usuarios u ON u.id = aa.usuario_id
+      WHERE aa.activo_id = ?
+      ORDER BY u.nombre ASC
+    `, [activo.id]);
 
     const vigencia = calculateVigencia(activo.fin_gestion);
 
@@ -228,6 +241,8 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
       ...activo,
       tickets_relacionados: tickets,
       historial,
+      administradores,
+      administradores_str: administradores.map(admin => admin.nombre).join(', '),
       vigencia,
       dias_restantes: vigencia.dias_restantes,
       estado_vigencia: vigencia.estado_vigencia,
@@ -292,6 +307,7 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       soporte_n1 = 'NO',
       pep,
       estado = 'ACTIVO',
+      administradores_ids = [],
       force_duplicate = false
     } = req.body;
 
@@ -357,6 +373,13 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
         VALUES (?, ?, ?, ?, ?, ?)
       `, [insertedId, req.user?.id || null, userName, 'Creación', null, `Activo creado exitosamente (${codigo})`]);
 
+      for (const administradorId of administradores_ids) {
+        const admin = await getOne("SELECT id FROM usuarios WHERE id = ? AND rol = 'ADMIN' AND estado = 'ACTIVO'", [Number(administradorId)]);
+        if (admin) {
+          await run('INSERT INTO activo_administrador (activo_id, usuario_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [insertedId, admin.id]);
+        }
+      }
+
       return insertedId;
     });
 
@@ -385,7 +408,8 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       correo_soporte,
       soporte_n1,
       pep,
-      estado
+      estado,
+      administradores_ids = []
     } = req.body;
 
     const old = await getOne('SELECT * FROM activos WHERE id = ?', [id]);
@@ -460,6 +484,14 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
         estado,
         old.id
       ]);
+
+      await run('DELETE FROM activo_administrador WHERE activo_id = ?', [old.id]);
+      for (const administradorId of administradores_ids) {
+        const admin = await getOne("SELECT id FROM usuarios WHERE id = ? AND rol = 'ADMIN' AND estado = 'ACTIVO'", [Number(administradorId)]);
+        if (admin) {
+          await run('INSERT INTO activo_administrador (activo_id, usuario_id) VALUES (?, ?) ON CONFLICT DO NOTHING', [old.id, admin.id]);
+        }
+      }
     });
 
     return res.json({ message: 'Activo actualizado con éxito' });

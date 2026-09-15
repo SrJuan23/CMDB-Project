@@ -3,13 +3,13 @@ export type NavigationTab =
   | 'activos'
   | 'clientes'
   | 'plataformas'
-  | 'administradores'
+  | 'usuarios'
   | 'reportes'
   | 'historial'
   | 'configuracion';
 
-export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, activosCount = 0): string {
-  const items: { id: NavigationTab; label: string; icon: string; badge?: string }[] = [
+export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, activosCount = 0, userRole?: 'ADMIN' | 'GESTOR' | 'CONSULTA'): string {
+  const items = ([
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -32,8 +32,8 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
       icon: `<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>`
     },
     {
-      id: 'administradores',
-      label: 'Administradores',
+      id: 'usuarios',
+      label: 'Usuarios',
       icon: `<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>`
     },
     {
@@ -51,7 +51,7 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
       label: 'Configuración',
       icon: `<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`
     }
-  ];
+  ] as { id: NavigationTab; label: string; icon: string; badge?: string }[]).filter(item => item.id !== 'usuarios' || userRole === 'ADMIN');
 
   return `
     <aside id="sidebar-container" class="bg-[#19255A] text-white flex flex-col transition-all duration-300 z-40 min-h-screen shrink-0 ${
@@ -67,7 +67,7 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
         ${!isCollapsed ? `
           <div class="overflow-hidden whitespace-nowrap">
             <h1 class="text-base font-extrabold tracking-wide font-heading text-white flex items-center gap-1.5">
-              TTECH <span class="text-[#00CDE2]">CMDB</span>
+              Hiberus <span class="text-[#00CDE2]">CMDB</span>
             </h1>
             <p class="text-[10px] uppercase font-bold text-[#D7E2FF]/70 tracking-widest font-heading">Asset Management</p>
           </div>
@@ -109,7 +109,7 @@ export function renderSidebar(currentTab: NavigationTab, isCollapsed: boolean, a
       <!-- Suite Footer -->
       ${!isCollapsed ? `
         <div class="p-4 border-t border-[#3B4779]/50 bg-[#19255A]/50 text-center">
-          <div class="text-[11px] text-slate-400 font-body">Suite Corporativa TTECH</div>
+          <div class="text-[11px] text-slate-400 font-body">Suite Corporativa Hiberus</div>
           <div class="text-[10px] text-[#00CDE2] font-semibold font-heading mt-0.5">CMDB & Support Desk v2.4</div>
         </div>
       ` : ''}

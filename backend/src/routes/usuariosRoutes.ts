@@ -1,16 +1,17 @@
 import express, { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { getOne, getAll, run, transaction } from '../db/database';
-import { AuthenticatedRequest } from '../middleware/auth';
+import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth';
 import { calculateVigencia, formatDateSpanish } from '../services/vigenciaService';
 import { parseExcelDate } from '../services/vigenciaService';
 
 const router = Router();
+router.use(authenticateToken);
 
-router.post('/', async (req: AuthenticatedRequest, res) => {
+router.post('/', requireRole('ADMIN'), async (req: AuthenticatedRequest, res) => {
   const { nombre, email, password, rol = 'GESTOR', estado = 'ACTIVO' } = req.body;
 
-  if (!nombre || !email || !password) {
+  if (!nombre || !email || !password || !['ADMIN', 'GESTOR', 'CONSULTA'].includes(rol)) {
     return res.status(400).json({ error: 'Nombre, email y password son obligatorios.' });
   }
 
@@ -24,8 +25,8 @@ router.post('/', async (req: AuthenticatedRequest, res) => {
     const hash = bcrypt.hashSync(password, salt);
 
     const result = await run(
-      'INSERT INTO usuarios (nombre, email, password_hash, rol, estado) VALUES (?, ?, ?, ?, ?)',
-      [nombre.trim(), email.trim().toLowerCase(), hash, rol, estado]
+      'INSERT INTO usuarios (nombre, email, password_hash, rol, estado, password_change_required, puede_ser_asignado) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [nombre.trim(), email.trim().toLowerCase(), hash, rol, estado, true, rol === 'ADMIN']
     );
 
     return res.status(201).json({ id: result.lastInsertRowid, message: 'Usuario creado con éxito' });
@@ -34,19 +35,33 @@ router.post('/', async (req: AuthenticatedRequest, res) => {
   }
 });
 
-router.get('/', async (req: AuthenticatedRequest, res) => {
+router.get('/', requireRole('ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
-    const usuarios = await getAll('SELECT id, nombre, email, rol, estado, created_at FROM usuarios ORDER BY nombre ASC');
+    const usuarios = await getAll('SELECT id, nombre, email, rol, estado, password_change_required, created_at FROM usuarios ORDER BY nombre ASC');
     return res.json(usuarios);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/:id', async (req: AuthenticatedRequest, res) => {
+router.get('/asignables', async (req: AuthenticatedRequest, res) => {
+  try {
+    const usuarios = await getAll(`
+      SELECT id, nombre, email, rol, estado, puede_iniciar_sesion
+      FROM usuarios
+      WHERE rol = 'ADMIN' AND estado = 'ACTIVO' AND puede_ser_asignado = TRUE
+      ORDER BY nombre ASC
+    `);
+    return res.json(usuarios);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/:id', requireRole('ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const user = await getOne('SELECT id, nombre, email, rol, estado, created_at FROM usuarios WHERE id = ?', [id]);
+    const user = await getOne('SELECT id, nombre, email, rol, estado, password_change_required, created_at FROM usuarios WHERE id = ?', [id]);
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -56,7 +71,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res) => {
   }
 });
 
-router.put('/:id', async (req: AuthenticatedRequest, res) => {
+router.put('/:id', requireRole('ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { nombre, email, password, rol, estado } = req.body;
@@ -84,12 +99,15 @@ router.put('/:id', async (req: AuthenticatedRequest, res) => {
     if (password) {
       const salt = bcrypt.genSaltSync(10);
       const hash = bcrypt.hashSync(password, salt);
-      updates.push('password_hash = ?');
+      updates.push('password_hash = ?', 'password_change_required = ?');
       params.push(hash);
+      params.push(true);
     }
     if (rol !== undefined) {
       updates.push('rol = ?');
       params.push(rol);
+      updates.push('puede_ser_asignado = ?');
+      params.push(rol === 'ADMIN');
     }
     if (estado !== undefined) {
       updates.push('estado = ?');
@@ -109,7 +127,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res) => {
   }
 });
 
-router.delete('/:id', async (req: AuthenticatedRequest, res) => {
+router.delete('/:id', requireRole('ADMIN'), async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const user = await getOne('SELECT id, nombre, email FROM usuarios WHERE id = ?', [id]);

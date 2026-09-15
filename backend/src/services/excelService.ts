@@ -317,7 +317,7 @@ export function exportActivosToExcel(activos: any[]): Buffer {
 
   const ws = xlsx.utils.json_to_sheet(data);
   const wb = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(wb, ws, 'Activos CMDB TTECH');
+  xlsx.utils.book_append_sheet(wb, ws, 'Activos CMDB Hiberus');
   return xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 

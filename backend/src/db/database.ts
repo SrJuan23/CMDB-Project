@@ -9,10 +9,13 @@ const PG_SCHEMA_TABLES = `
 CREATE TABLE IF NOT EXISTS usuarios (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(150) NOT NULL,
-  email VARCHAR(150) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(150) UNIQUE,
+  password_hash VARCHAR(255),
   rol VARCHAR(20) NOT NULL DEFAULT 'GESTOR',
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  password_change_required BOOLEAN NOT NULL DEFAULT TRUE,
+  puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE,
+  puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -68,8 +71,8 @@ CREATE TABLE IF NOT EXISTS activos (
 CREATE TABLE IF NOT EXISTS activo_administrador (
   id SERIAL PRIMARY KEY,
   activo_id INTEGER NOT NULL REFERENCES activos(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  persona_id INTEGER NOT NULL REFERENCES personas(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE(activo_id, persona_id)
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  UNIQUE(activo_id, usuario_id)
 );
 
 CREATE TABLE IF NOT EXISTS historial_activo (
@@ -106,9 +109,8 @@ const PG_SCHEMA_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
   CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
   CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
-  CREATE INDEX IF NOT EXISTS idx_personas_tipo ON personas(tipo);
   CREATE INDEX IF NOT EXISTS idx_activo_admin_activo ON activo_administrador(activo_id);
-  CREATE INDEX IF NOT EXISTS idx_activo_admin_persona ON activo_administrador(persona_id);
+  CREATE INDEX IF NOT EXISTS idx_activo_admin_usuario ON activo_administrador(usuario_id);
   CREATE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku);
   CREATE INDEX IF NOT EXISTS idx_plataformas_pet ON plataformas(pet);
 `;
@@ -121,6 +123,46 @@ export async function initDatabase() {
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pep VARCHAR(100)');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_change_required BOOLEAN NOT NULL DEFAULT FALSE');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE');
+  await pool.query(`
+    UPDATE usuarios
+    SET puede_ser_asignado = TRUE
+    WHERE rol = 'ADMIN'
+      AND nombre IN ('Harold Carretero', 'Edwin Rincon', 'Edwin Rincón', 'Juan Cadavid', 'N2 DISPONIBLE')
+  `);
+  await pool.query('ALTER TABLE usuarios ALTER COLUMN email DROP NOT NULL');
+  await pool.query('ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL');
+
+  const assignmentColumn = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'activo_administrador' AND column_name = 'usuario_id'"
+  );
+  if (assignmentColumn.rows.length === 0) {
+    await pool.query('ALTER TABLE activo_administrador ADD COLUMN usuario_id INTEGER');
+    await pool.query(`
+      INSERT INTO usuarios (nombre, email, password_hash, rol, estado, password_change_required, puede_iniciar_sesion, puede_ser_asignado)
+      SELECT p.nombre, NULL, NULL, 'ADMIN', p.estado, FALSE, FALSE, TRUE
+      FROM personas p
+      WHERE p.nombre IN ('Harold Carretero', 'Edwin Rincon', 'Edwin Rincón', 'Juan Cadavid', 'N2 DISPONIBLE')
+        AND NOT EXISTS (SELECT 1 FROM usuarios u WHERE LOWER(u.nombre) = LOWER(p.nombre))
+    `);
+    await pool.query(`
+      UPDATE activo_administrador aa
+      SET usuario_id = u.id
+      FROM personas p
+      JOIN usuarios u ON LOWER(u.nombre) = LOWER(p.nombre)
+      WHERE aa.persona_id = p.id
+    `);
+    await pool.query('DELETE FROM activo_administrador WHERE usuario_id IS NULL');
+    await pool.query('ALTER TABLE activo_administrador DROP CONSTRAINT IF EXISTS activo_administrador_persona_id_fkey');
+    await pool.query('ALTER TABLE activo_administrador DROP CONSTRAINT IF EXISTS activo_administrador_activo_id_persona_id_key');
+    await pool.query('ALTER TABLE activo_administrador DROP COLUMN persona_id');
+    await pool.query('ALTER TABLE activo_administrador ALTER COLUMN usuario_id SET NOT NULL');
+    await pool.query('ALTER TABLE activo_administrador ADD CONSTRAINT activo_administrador_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE');
+    await pool.query('ALTER TABLE activo_administrador ADD CONSTRAINT activo_administrador_activo_id_usuario_id_key UNIQUE (activo_id, usuario_id)');
+    await pool.query('DROP TABLE IF EXISTS personas CASCADE');
+  }
 
   const skuCol = await pool.query(
     "SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' AND column_name = 'sku'"

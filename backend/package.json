@@ -1,7 +1,7 @@
 {
   "name": "cmdb-backend",
   "version": "1.0.0",
-  "description": "Backend API REST para TTECH CMDB",
+  "description": "Backend API REST para Hiberus CMDB",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",

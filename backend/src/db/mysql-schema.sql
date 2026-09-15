@@ -1,8 +1,8 @@
--- TTECH CMDB - MySQL Schema DDL
+-- Hiberus CMDB - MySQL Schema DDL
 -- Compatible with MySQL 8.0+ / MariaDB 10.5+
 
-CREATE DATABASE IF NOT EXISTS cmdb_ttech CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE cmdb_ttech;
+CREATE DATABASE IF NOT EXISTS cmdb_hiberus CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE cmdb_hiberus;
 
 CREATE TABLE IF NOT EXISTS usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,

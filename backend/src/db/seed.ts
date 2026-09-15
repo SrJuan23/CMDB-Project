@@ -5,7 +5,7 @@ import { getOne, getAll, run, initDatabase } from './database';
 import { parseExcelBuffer, commitExcelImport } from '../services/excelService';
 
 export async function runSeed() {
-  console.log('--- Initializing TTECH CMDB Database ---');
+  console.log('--- Initializing Hiberus CMDB Database ---');
   initDatabase();
 
   const userCountRow = await getOne('SELECT COUNT(*) as count FROM usuarios');
@@ -18,15 +18,15 @@ export async function runSeed() {
     const consultaHash = bcrypt.hashSync(process.env.SEED_CONSULTA_PASSWORD || 'Consulta123!*', salt);
 
     await run('INSERT INTO usuarios (nombre, email, password_hash, rol, estado) VALUES (?, ?, ?, ?, ?)', [
-      'Administrador General', 'admin@ttech.com', adminHash, 'ADMIN', 'ACTIVO'
+      'Administrador General', 'admin@hiberus.com', adminHash, 'ADMIN', 'ACTIVO'
     ]);
     await run('INSERT INTO usuarios (nombre, email, password_hash, rol, estado) VALUES (?, ?, ?, ?, ?)', [
-      'Juan Cadavid (Gestor)', 'gestor@ttech.com', gestorHash, 'GESTOR', 'ACTIVO'
+      'Juan Cadavid (Gestor)', 'gestor@hiberus.com', gestorHash, 'GESTOR', 'ACTIVO'
     ]);
     await run('INSERT INTO usuarios (nombre, email, password_hash, rol, estado) VALUES (?, ?, ?, ?, ?)', [
-      'Auditor Consulta', 'consulta@ttech.com', consultaHash, 'CONSULTA', 'ACTIVO'
+      'Auditor Consulta', 'consulta@hiberus.com', consultaHash, 'CONSULTA', 'ACTIVO'
     ]);
-    console.log('Users created: admin@ttech.com, gestor@ttech.com, consulta@ttech.com');
+    console.log('Users created: admin@hiberus.com, gestor@hiberus.com, consulta@hiberus.com');
   }
 
   const assetCountRow = await getOne('SELECT COUNT(*) as count FROM activos');

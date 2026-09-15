@@ -3,20 +3,20 @@ import { User, Activo, Cliente, Plataforma, Persona, DashboardStats, HistorialIt
 const API_BASE = '/api';
 
 export function getToken(): string | null {
-  return localStorage.getItem('ttech_token');
+  return localStorage.getItem('hiberus_token');
 }
 
 export function setToken(token: string) {
-  localStorage.setItem('ttech_token', token);
+  localStorage.setItem('hiberus_token', token);
 }
 
 export function clearToken() {
-  localStorage.removeItem('ttech_token');
-  localStorage.removeItem('ttech_user');
+  localStorage.removeItem('hiberus_token');
+  localStorage.removeItem('hiberus_user');
 }
 
 export function getUser(): User | null {
-  const u = localStorage.getItem('ttech_user');
+  const u = localStorage.getItem('hiberus_user');
   if (!u) return null;
   try {
     return JSON.parse(u);
@@ -26,7 +26,7 @@ export function getUser(): User | null {
 }
 
 export function setUser(user: User) {
-  localStorage.setItem('ttech_user', JSON.stringify(user));
+  localStorage.setItem('hiberus_user', JSON.stringify(user));
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -62,14 +62,41 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   // Auth
-  async login(email: string, password: string): Promise<{ token: string; user: User }> {
-    const res = await request<{ token: string; user: User }>('/auth/login', {
+  async login(email: string, password: string): Promise<{ token: string; user: User; password_change_required?: boolean }> {
+    const res = await request<{ token: string; user: User; password_change_required?: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
     setToken(res.token);
     setUser(res.user);
     return res;
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return request('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+  },
+
+  async getUsuarios(): Promise<User[]> {
+    return request('/usuarios');
+  },
+
+  async getUsuariosAsignables(): Promise<User[]> {
+    return request('/usuarios/asignables');
+  },
+
+  async createUsuario(data: { nombre: string; email: string; password: string; rol: User['rol']; estado?: User['estado'] }): Promise<any> {
+    return request('/usuarios', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  async updateUsuario(id: number | string, data: Partial<{ nombre: string; email: string; password: string; rol: User['rol']; estado: User['estado'] }>): Promise<any> {
+    return request(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+
+  async deleteUsuario(id: number | string): Promise<any> {
+    return request(`/usuarios/${id}`, { method: 'DELETE' });
   },
 
   async me(): Promise<User> {

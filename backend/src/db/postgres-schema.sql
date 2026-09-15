@@ -1,14 +1,17 @@
--- TTECH CMDB - PostgreSQL Schema
+-- Hiberus CMDB - PostgreSQL Schema
 -- Schema is auto-created by initDatabase() in database.ts
 -- This file is kept for reference/manual setup
 
 CREATE TABLE IF NOT EXISTS usuarios (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(150) NOT NULL,
-  email VARCHAR(150) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(150) UNIQUE,
+  password_hash VARCHAR(255),
   rol VARCHAR(20) NOT NULL DEFAULT 'GESTOR',
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+  password_change_required BOOLEAN NOT NULL DEFAULT TRUE,
+  puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE,
+  puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,6 +1,6 @@
 import './style.css';
 import { api, getToken, clearToken } from './services/api';
-import { User, Activo, Cliente, Plataforma, Persona, DashboardStats, HistorialItem } from './types';
+import { User, Activo, Cliente, Plataforma, DashboardStats, HistorialItem } from './types';
 import { renderSidebar, NavigationTab } from './components/Sidebar';
 import { renderNavbar } from './components/Navbar';
 import { renderDashboardView, initDashboardCharts, DashboardSection, getSavedOrder, saveVisible, saveOrder } from './components/DashboardView';
@@ -10,7 +10,7 @@ import { renderClientesView } from './components/ClientesView';
 import { renderClienteDetailView, initClienteDetailView } from './components/ClienteDetailView';
 import { renderPlataformasView } from './components/PlataformasView';
 import { renderPlataformaDetailView, initPlataformaDetailView } from './components/PlataformaDetailView';
-import { renderPersonasView } from './components/PersonasView';
+import { renderUsuariosView } from './components/UsuariosView';
 import { renderPersonaDetailView, initPersonaDetailView } from './components/PersonaDetailView';
 import { renderHistorialView } from './components/HistorialView';
 import { renderConfiguracionView } from './components/ConfiguracionView';
@@ -33,7 +33,7 @@ let isDashboardEditing = false;
 let dashboardVisibleSections: Set<string> = new Set(['kpis', 'vigencias', 'atencion', 'charts']);
 let allClientes: Cliente[] = [];
 let allPlataformas: Plataforma[] = [];
-let allPersonas: Persona[] = [];
+let allUsers: User[] = [];
 let activosData: Activo[] = [];
 let activosMeta = { total: 0, page: 1, limit: 25, totalPages: 1 };
 let activosCounts = { todos: 0, activos: 0, inactivos: 0, vigentes: 0, proximos: 0, vencidos: 0 };
@@ -59,6 +59,9 @@ async function init() {
 
   try {
     currentUser = await api.me();
+    if (currentUser.password_change_required) {
+      await showRequiredPasswordChange();
+    }
   } catch {
     clearToken();
     showLogin();
@@ -66,8 +69,11 @@ async function init() {
   }
 
   const savedTab = localStorage.getItem('cmdb_current_tab');
-  if (savedTab && ['dashboard','activos','clientes','plataformas','administradores','reportes','historial','configuracion'].includes(savedTab)) {
+  if (savedTab && ['dashboard','activos','clientes','plataformas','usuarios','reportes','historial','configuracion'].includes(savedTab)) {
     currentTab = savedTab as NavigationTab;
+  }
+  if (currentTab === 'usuarios' && currentUser.rol !== 'ADMIN') {
+    currentTab = 'dashboard';
   }
 
   const savedOrder = localStorage.getItem('cmdb_dashboard_order');
@@ -134,11 +140,11 @@ async function loadHistorial() {
 
 async function loadInitialData() {
   try {
-    const [stats, clientes, plataformas, personas, historial, config, activos] = await Promise.all([
+    const [stats, clientes, plataformas, usuarios, historial, config, activos] = await Promise.all([
       api.getDashboardStats().catch(() => null),
       api.getClientes().catch(() => []),
       api.getPlataformas().catch(() => []),
-      api.getPersonas().catch(() => []),
+      currentUser?.rol === 'ADMIN' ? api.getUsuarios().catch(() => []) : api.getUsuariosAsignables().catch(() => []),
       api.getHistorial({ limit: '50' }).catch(() => ({ data: [], total: 0, page: 1, limit: 50, totalPages: 1 })),
       api.getConfig().catch(() => ({ dias_proximo_vencer: '30', bloquear_duplicados_serial: '0' })),
       api.getActivos(activosFilters).catch(() => ({ 
@@ -150,7 +156,7 @@ async function loadInitialData() {
     dashboardStats = stats;
     allClientes = clientes;
     allPlataformas = plataformas;
-    allPersonas = personas;
+    allUsers = usuarios;
     historialData = historial.data || [];
     historialMeta = { 
       total: historial.total, 
@@ -186,14 +192,14 @@ function showLogin() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
           </div>
-          <h1 class="text-2xl font-extrabold text-[#19255A] font-heading">TTECH CMDB</h1>
+          <h1 class="text-2xl font-extrabold text-[#19255A] font-heading">Hiberus CMDB</h1>
           <p class="text-sm text-slate-500 font-body mt-1">Plataforma de Gestión de Activos Tecnológicos</p>
         </div>
 
         <form id="login-form" class="space-y-4">
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Email</label>
-            <input type="email" id="login-email" required value="admin@ttech.com" class="cmdb-input" placeholder="usuario@ttech.com" />
+            <input type="email" id="login-email" required value="" class="cmdb-input" placeholder="usuario@empresa.com" />
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Contraseña</label>
@@ -202,14 +208,7 @@ function showLogin() {
           <button type="submit" class="btn-primary w-full">Iniciar Sesión</button>
         </form>
 
-        <div class="mt-6 pt-4 border-t border-[#EDF0FF] text-xs text-slate-500 space-y-1 font-body">
-          <div class="font-bold text-[#19255A]">Usuarios de prueba:</div>
-          <div class="flex justify-between"><span>ADMIN:</span> <span class="font-mono">admin@ttech.com</span></div>
-          <div class="flex justify-between"><span>GESTOR:</span> <span class="font-mono">gestor@ttech.com</span></div>
-          <div class="flex justify-between"><span>CONSULTA:</span> <span class="font-mono">consulta@ttech.com</span></div>
-        </div>
-
-        <p class="text-center text-xs text-slate-400 mt-6 font-body">Suite Corporativa TTECH v2.4</p>
+        <p class="text-center text-xs text-slate-400 mt-6 font-body">Suite Corporativa Hiberus</p>
       </div>
     </div>`;
 
@@ -220,6 +219,9 @@ function showLogin() {
       const pass = (document.getElementById('login-password') as HTMLInputElement).value;
       const res = await api.login(email, pass);
       currentUser = res.user;
+      if (res.password_change_required || res.user.password_change_required) {
+        await showRequiredPasswordChange();
+      }
       await loadInitialData();
       setupGlobalListeners();
       renderApp();
@@ -230,6 +232,45 @@ function showLogin() {
   });
 }
 
+async function showRequiredPasswordChange(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm';
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+        <h3 class="text-lg font-bold text-[#19255A] font-heading">Actualiza tu contraseña</h3>
+        <p class="text-xs text-slate-500 mt-1 mb-4">Por seguridad, debes cambiar la contraseña inicial antes de continuar.</p>
+        <form id="required-password-form" class="space-y-4">
+          <input type="password" id="required-current-password" required class="cmdb-input text-xs" placeholder="Contraseña actual" />
+          <input type="password" id="required-new-password" required minlength="8" class="cmdb-input text-xs" placeholder="Nueva contraseña (mínimo 8 caracteres)" />
+          <input type="password" id="required-confirm-password" required minlength="8" class="cmdb-input text-xs" placeholder="Confirmar nueva contraseña" />
+          <button type="submit" class="btn-primary w-full">Guardar contraseña</button>
+        </form>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#required-password-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const current = (modal.querySelector('#required-current-password') as HTMLInputElement).value;
+      const next = (modal.querySelector('#required-new-password') as HTMLInputElement).value;
+      const confirmation = (modal.querySelector('#required-confirm-password') as HTMLInputElement).value;
+      if (next !== confirmation) {
+        showToast('Las contraseñas nuevas no coinciden.', 'error');
+        return;
+      }
+      try {
+        await api.changePassword(current, next);
+        if (currentUser) currentUser.password_change_required = false;
+        modal.remove();
+        showToast('Contraseña actualizada correctamente.', 'success');
+        resolve();
+      } catch (error: any) {
+        showToast(error.message || 'No se pudo actualizar la contraseña.', 'error');
+        reject(error);
+      }
+    });
+  });
+}
+
 function renderApp() {
   if (!currentUser) return;
   const app = document.getElementById('app');
@@ -237,9 +278,9 @@ function renderApp() {
 
   app.innerHTML = `
     <div class="flex h-screen bg-[#F7F8FD] overflow-hidden">
-      ${renderSidebar(currentTab, sidebarCollapsed, dashboardStats?.kpis?.total_activos || activosMeta.total || 0)}
+      ${renderSidebar(currentTab, sidebarCollapsed, dashboardStats?.kpis?.total_activos || activosMeta.total || 0, currentUser.rol)}
       <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-        ${renderNavbar(currentUser, handleSearch, handleRoleChange, handleNotifications, notificationsCount)}
+        ${renderNavbar(currentUser, handleSearch, handleNotifications, notificationsCount)}
         <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">${renderCurrentView()}</main>
       </div>
     </div>`;
@@ -283,14 +324,14 @@ function renderCurrentView(): string {
         activosFilters, 
         allClientes, 
         allPlataformas, 
-        allPersonas
+        allUsers
       );
     case 'clientes': 
       return renderClientesView(allClientes);
     case 'plataformas': 
       return renderPlataformasView(allPlataformas);
-    case 'administradores': 
-      return renderPersonasView(allPersonas, currentTab);
+    case 'usuarios':
+      return renderUsuariosView(allUsers);
     case 'historial': 
       return renderHistorialView(
         historialData, 
@@ -366,26 +407,6 @@ function performSearch() {
   if (i) handleSearch(i.value);
 }
 
-async function handleRoleChange(newRole: string) {
-  const roleCreds: Record<string, { email: string; pass: string }> = {
-    ADMIN: { email: 'admin@ttech.com', pass: 'Admin123!*' },
-    GESTOR: { email: 'gestor@ttech.com', pass: 'Gestor123!*' },
-    CONSULTA: { email: 'consulta@ttech.com', pass: 'Consulta123!*' }
-  };
-
-  if (!roleCreds[newRole]) return;
-
-  try {
-    showToast(`Cambiando a sesión ${newRole}...`, 'info');
-    const res = await api.login(roleCreds[newRole].email, roleCreds[newRole].pass);
-    currentUser = res.user;
-    await loadInitialData();
-    renderApp();
-    showToast(`Sesión activa como: ${newRole}`, 'success');
-  } catch (err: any) {
-    showToast(err.message || 'Error al cambiar rol', 'error');
-  }
-}
 
 function handleNotifications() {
   if (!notificationsCount) {
@@ -623,7 +644,7 @@ function showActivoForm(activo?: any) {
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn overflow-y-auto';
 
-  const admins = allPersonas.filter(p => p.tipo === 'ADMINISTRADOR');
+  const admins = allUsers.filter(user => user.rol === 'ADMIN' && user.estado === 'ACTIVO');
   const currentAdminIds = new Set((activo?.administradores || []).map((a: any) => a.id));
 
   modal.innerHTML = `
@@ -934,6 +955,59 @@ function showPlataformaForm(plataforma?: any) {
   });
 }
 
+function showUsuarioForm(usuario?: User) {
+  const isEdit = !!usuario;
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm';
+  modal.innerHTML = `
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <h3 class="text-lg font-bold text-[#19255A] font-heading mb-4">${isEdit ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
+      <form id="usuario-form" class="space-y-4">
+        <input type="text" id="f-user-name" value="${usuario?.nombre || ''}" required class="cmdb-input text-xs" placeholder="Nombre completo" />
+        <input type="email" id="f-user-email" value="${usuario?.email || ''}" required class="cmdb-input text-xs" placeholder="usuario@empresa.com" />
+        <select id="f-user-role" class="cmdb-input text-xs">
+          <option value="ADMIN" ${usuario?.rol === 'ADMIN' ? 'selected' : ''}>Admin</option>
+          <option value="GESTOR" ${usuario?.rol === 'GESTOR' ? 'selected' : ''}>Gestor</option>
+          <option value="CONSULTA" ${usuario?.rol === 'CONSULTA' ? 'selected' : ''}>Consulta / lector</option>
+        </select>
+        <select id="f-user-state" class="cmdb-input text-xs">
+          <option value="ACTIVO" ${usuario?.estado !== 'INACTIVO' ? 'selected' : ''}>Activo</option>
+          <option value="INACTIVO" ${usuario?.estado === 'INACTIVO' ? 'selected' : ''}>Inactivo</option>
+        </select>
+        <input type="password" id="f-user-password" ${isEdit ? '' : 'required'} minlength="8" class="cmdb-input text-xs" placeholder="${isEdit ? 'Nueva contraseña (opcional)' : 'Contraseña inicial (mínimo 8 caracteres)'}" />
+        ${!isEdit ? '<p class="text-[11px] text-slate-500">El usuario deberá cambiar esta contraseña en su primer acceso.</p>' : ''}
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" id="cancel-user-form" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+          <button type="submit" class="btn-primary text-xs">${isEdit ? 'Guardar' : 'Crear'}</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+  const cleanup = () => modal.remove();
+  modal.querySelector('#cancel-user-form')?.addEventListener('click', cleanup);
+  modal.querySelector('#usuario-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const password = (modal.querySelector('#f-user-password') as HTMLInputElement).value;
+    const data: any = {
+      nombre: (modal.querySelector('#f-user-name') as HTMLInputElement).value.trim(),
+      email: (modal.querySelector('#f-user-email') as HTMLInputElement).value.trim(),
+      rol: (modal.querySelector('#f-user-role') as HTMLSelectElement).value,
+      estado: (modal.querySelector('#f-user-state') as HTMLSelectElement).value
+    };
+    if (password) data.password = password;
+    try {
+      if (usuario) await api.updateUsuario(usuario.id, data);
+      else await api.createUsuario({ ...data, password });
+      cleanup();
+      await loadInitialData();
+      renderApp();
+      showToast('Usuario guardado correctamente.', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'No se pudo guardar el usuario.', 'error');
+    }
+  });
+}
+
 function showPersonaForm(persona?: any) {
   const isEdit = !!persona;
   const defaultTipo = 'ADMINISTRADOR';
@@ -942,7 +1016,7 @@ function showPersonaForm(persona?: any) {
   modal.innerHTML = `
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-[#19255A] font-heading">${isEdit ? 'Editar Responsable' : 'Nuevo Responsable Técnico'}</h3>
+        <h3 class="text-lg font-bold text-[#19255A] font-heading">${isEdit ? 'Editar Persona Técnica' : 'Nueva Persona Técnica'}</h3>
         <button id="close-modal-x" class="text-slate-400 hover:text-slate-600">✕</button>
       </div>
       <form id="persona-form" class="space-y-4">
@@ -952,7 +1026,7 @@ function showPersonaForm(persona?: any) {
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Correo Electrónico</label>
-          <input type="email" id="f-per-mail" value="${persona?.email || ''}" class="cmdb-input text-xs" placeholder="carlos.mendoza@ttech.com" />
+          <input type="email" id="f-per-mail" value="${persona?.email || ''}" class="cmdb-input text-xs" placeholder="persona@empresa.com" />
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Rol / Tipo</label>
@@ -989,6 +1063,63 @@ function showPersonaForm(persona?: any) {
         await api.createPersona(data);
         showToast('Responsable creado', 'success');
       }
+
+      function showUsuarioForm(usuario?: User) {
+        const isEdit = !!usuario;
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm';
+        modal.innerHTML = `
+          <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-[#19255A] font-heading">${isEdit ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
+              <button id="close-modal-x" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <form id="usuario-form" class="space-y-4">
+              <input type="text" id="f-user-name" value="${usuario?.nombre || ''}" required class="cmdb-input text-xs" placeholder="Nombre completo" />
+              <input type="email" id="f-user-email" value="${usuario?.email || ''}" required class="cmdb-input text-xs" placeholder="usuario@empresa.com" />
+              <select id="f-user-role" class="cmdb-input text-xs">
+                <option value="ADMIN" ${usuario?.rol === 'ADMIN' ? 'selected' : ''}>Admin</option>
+                <option value="GESTOR" ${usuario?.rol === 'GESTOR' ? 'selected' : ''}>Gestor</option>
+                <option value="CONSULTA" ${usuario?.rol === 'CONSULTA' ? 'selected' : ''}>Consulta / lector</option>
+              </select>
+              <select id="f-user-state" class="cmdb-input text-xs">
+                <option value="ACTIVO" ${usuario?.estado !== 'INACTIVO' ? 'selected' : ''}>Activo</option>
+                <option value="INACTIVO" ${usuario?.estado === 'INACTIVO' ? 'selected' : ''}>Inactivo</option>
+              </select>
+              <input type="password" id="f-user-password" ${isEdit ? '' : 'required'} minlength="8" class="cmdb-input text-xs" placeholder="${isEdit ? 'Nueva contraseña (opcional)' : 'Contraseña inicial (mínimo 8 caracteres)'}" />
+              ${!isEdit ? '<p class="text-[11px] text-slate-500">El usuario deberá cambiar esta contraseña en su primer acceso.</p>' : ''}
+              <div class="flex justify-end gap-3 pt-2">
+                <button type="button" id="cancel-user-form" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button type="submit" class="btn-primary text-xs">${isEdit ? 'Guardar' : 'Crear'}</button>
+              </div>
+            </form>
+          </div>`;
+        document.body.appendChild(modal);
+        const cleanup = () => modal.remove();
+        modal.querySelector('#close-modal-x')?.addEventListener('click', cleanup);
+        modal.querySelector('#cancel-user-form')?.addEventListener('click', cleanup);
+        modal.querySelector('#usuario-form')?.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const password = (modal.querySelector('#f-user-password') as HTMLInputElement).value;
+          const data: any = {
+            nombre: (modal.querySelector('#f-user-name') as HTMLInputElement).value.trim(),
+            email: (modal.querySelector('#f-user-email') as HTMLInputElement).value.trim(),
+            rol: (modal.querySelector('#f-user-role') as HTMLSelectElement).value,
+            estado: (modal.querySelector('#f-user-state') as HTMLSelectElement).value
+          };
+          if (password) data.password = password;
+          try {
+            if (isEdit && usuario) await api.updateUsuario(usuario.id, data);
+            else await api.createUsuario({ ...data, password });
+            cleanup();
+            showToast(`Usuario ${isEdit ? 'actualizado' : 'creado'} correctamente.`, 'success');
+            await loadInitialData();
+            renderApp();
+          } catch (error: any) {
+            showToast(error.message || 'No se pudo guardar el usuario.', 'error');
+          }
+        });
+      }
       cleanup();
       await loadInitialData();
       renderApp();
@@ -1014,9 +1145,9 @@ function showEditPlataformaById(id: number) {
   if (p) showPlataformaForm(p);
 }
 
-function showEditPersonaById(id: number) {
-  const p = allPersonas.find(x => x.id === id);
-  if (p) showPersonaForm(p);
+function showEditUsuarioById(id: number) {
+  const usuario = allUsers.find(user => user.id === id);
+  if (usuario) showUsuarioForm(usuario);
 }
 
 async function deleteActivo(id: number, codigo: string) {
@@ -1097,9 +1228,9 @@ function setupGlobalListeners() {
       if (!isNaN(id)) showEditPlataformaById(id);
       return;
     }
-    if (btn.hasAttribute('data-edit-persona')) {
-      const id = Number(btn.getAttribute('data-edit-persona'));
-      if (!isNaN(id)) showEditPersonaById(id);
+    if (btn.hasAttribute('data-edit-usuario')) {
+      const id = Number(btn.getAttribute('data-edit-usuario'));
+      if (!isNaN(id)) showEditUsuarioById(id);
       return;
     }
 
@@ -1154,7 +1285,7 @@ function setupGlobalListeners() {
       const id = Number(btn.getAttribute('data-delete-persona'));
       showConfirmDialog({
         title: 'Eliminar Responsable',
-        message: '¿Eliminar este líder / administrador?',
+        message: '¿Eliminar esta persona técnica?',
         confirmText: 'Eliminar',
         isDanger: true,
         onConfirm: async () => {
@@ -1165,6 +1296,26 @@ function setupGlobalListeners() {
             renderApp();
           } catch (err: any) {
             showToast(err.message || 'Error al eliminar responsable', 'error');
+          }
+        }
+      });
+      return;
+    }
+    if (btn.hasAttribute('data-delete-usuario')) {
+      const id = Number(btn.getAttribute('data-delete-usuario'));
+      showConfirmDialog({
+        title: 'Eliminar Usuario',
+        message: '¿Eliminar este usuario? Esta acción no se puede deshacer.',
+        confirmText: 'Eliminar',
+        isDanger: true,
+        onConfirm: async () => {
+          try {
+            await api.deleteUsuario(id);
+            showToast('Usuario eliminado', 'success');
+            await loadInitialData();
+            renderApp();
+          } catch (error: any) {
+            showToast(error.message || 'No se pudo eliminar el usuario.', 'error');
           }
         }
       });
@@ -1316,17 +1467,16 @@ function setupGlobalListeners() {
       return;
     }
 
-    // Excel & Quick Actions
-    if (btn.id === 'sidebar-import-btn' || btn.id === 'dash-import-excel-btn' || btn.id === 'activos-import-btn') {
-      showImportExcelModal();
-      return;
-    }
     if (btn.id === 'activos-export-btn') {
       exportActivos();
       return;
     }
     if (btn.id === 'activos-new-btn' || btn.id === 'dash-new-asset-btn') {
       showActivoForm();
+      return;
+    }
+    if (btn.id === 'usuario-new-btn') {
+      showUsuarioForm();
       return;
     }
     if (btn.id === 'cliente-new-btn') {
@@ -1418,14 +1568,9 @@ function setupGlobalListeners() {
     }
   });
 
-  // Global delegation for changes (dropdown filters and role switcher)
+  // Global delegation for changes
   document.addEventListener('change', async (e) => {
     const target = e.target as HTMLElement;
-
-    if (target.id === 'role-select') {
-      await handleRoleChange((target as HTMLSelectElement).value);
-      return;
-    }
 
     if (target.id === 'add-section-select') {
       const select = target as HTMLSelectElement;

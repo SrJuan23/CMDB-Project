@@ -7,7 +7,7 @@ MAX_BACKUPS=30
 PG_HOST="${PG_HOST:-localhost}"
 PG_PORT="${PG_PORT:-5432}"
 PG_USER="${PG_USER:-postgres}"
-PG_DATABASE="${PG_DATABASE:-cmdb_ttech}"
+PG_DATABASE="${PG_DATABASE:-cmdb_hiberus}"
 PGPASSWORD="${PG_PASSWORD:-}"
 
 mkdir -p "$BACKUP_DIR"

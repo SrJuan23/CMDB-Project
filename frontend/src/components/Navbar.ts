@@ -4,7 +4,6 @@ import { clearToken } from '../services/api';
 export function renderNavbar(
   user: User,
   onSearch: (q: string) => void,
-  onRoleChange: (newRole: 'ADMIN' | 'GESTOR' | 'CONSULTA') => void,
   onOpenNotifications: () => void,
   unreadAlertsCount = 0
 ): string {
@@ -42,16 +41,6 @@ export function renderNavbar(
             </span>
           ` : ''}
         </button>
-
-        <!-- Role Quick Switcher Demo Pill -->
-        <div class="hidden lg:flex items-center bg-[#EDF0FF] rounded-lg p-0.5 border border-[#D7E2FF] text-xs font-heading font-medium">
-          <span class="px-2 text-slate-500">Rol:</span>
-          <select id="role-select" class="bg-transparent text-[#0945F7] font-bold py-1 pr-2 outline-none cursor-pointer">
-            <option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
-            <option value="GESTOR" ${user.rol === 'GESTOR' ? 'selected' : ''}>GESTOR</option>
-            <option value="CONSULTA" ${user.rol === 'CONSULTA' ? 'selected' : ''}>CONSULTA</option>
-          </select>
-        </div>
 
         <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
 
