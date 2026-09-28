@@ -96,5 +96,5 @@ PUT    /api/config
 
 - El archivo `backend/.env` **no** se versiona. Copiá desde `.env.example`.
 - Para producción, cambiá `JWT_SECRET` y configurá `DB_TYPE=postgres`.
-- Los seeds por defecto son solo para desarrollo.
+- Los seeds por defecto son solo para desarrollo.  
 - Backend sirve el frontend build si existe `frontend/dist/`.
