@@ -5,7 +5,7 @@
 - Node.js >= 18
 - npm >= 9
 - PM2 (opcional pero recomendado): `npm install -g pm2`
-- Una cuenta de Railway con un servicio PostgreSQL
+- PostgreSQL 16 instalado y ejecutándose localmente (servicio `postgresql-x64-16`, puerto 5432)
 
 ---
 
@@ -27,6 +27,19 @@ El build del frontend se genera en `frontend/dist/`. El backend sirve automátic
 
 ---
 
+## 1.1. Crear la base de datos y cargar el Excel
+
+Una sola vez, después de configurar `backend/.env`:
+
+```bash
+cd backend
+node scripts/import_excel.js "C:\ruta\al\archivo.xlsx"
+```
+
+El script crea la base `cmdb_hiberus` si no existe, genera el schema completo, inserta los usuarios base e importa las hojas del Excel. Es idempotente por `serial_number`: al reejecutarlo actualiza los registros existentes en lugar de duplicarlos. Si el Excel no trae la columna, se puede omitir el argumento para solo crear la estructura.
+
+---
+
 ## 2. Variables de entorno
 
 Copiar `backend/.env.example` a `backend/.env` y configurar:
@@ -39,7 +52,7 @@ PG_HOST=localhost
 PG_PORT=5432
 PG_USER=postgres
 PG_PASSWORD=<contraseña-segura>
-PG_DATABASE=cmdb_ttech
+PG_DATABASE=cmdb_hiberus
 JWT_SECRET=<clave-secreta-larga-min-64-caracteres>
 JWT_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:5173,http://localhost:3000
@@ -55,10 +68,10 @@ PG_HOST=localhost
 PG_PORT=5432
 PG_USER=postgres
 PG_PASSWORD=<contraseña-segura>
-PG_DATABASE=cmdb_ttech
+PG_DATABASE=cmdb_hiberus
 JWT_SECRET=<clave-secreta-larga-min-64-caracteres>
 JWT_EXPIRES_IN=7d
-CORS_ORIGIN=https://cmdb.ttech.com,https://ttech-cmdb.netlify.app
+CORS_ORIGIN=http://localhost:5173
 LOG_LEVEL=info
 DEFAULT_EXPIRING_DAYS=30
 ```
@@ -93,10 +106,10 @@ pm2 save
 ### PostgreSQL (producción)
 ```bash
 # Backup manual
-pg_dump -U postgres -d cmdb_ttech -F c -f backups/cmdb-backup-$(date +%Y-%m-%d).dump
+pg_dump -U postgres -d cmdb_hiberus -F c -f backups/cmdb-backup-$(date +%Y-%m-%d).dump
 
 # Restore
-pg_restore -U postgres -d cmdb_ttech backups/cmdb-backup-YYYY-MM-DD.dump
+pg_restore -U postgres -d cmdb_hiberus backups/cmdb-backup-YYYY-MM-DD.dump
 ```
 
 ### Backup automático
@@ -107,7 +120,7 @@ pg_restore -U postgres -d cmdb_ttech backups/cmdb-backup-YYYY-MM-DD.dump
 crontab -e
 
 # Agregar línea para backup diario a las 2 AM
-0 2 * * * /usr/bin/pg_dump -U postgres -d cmdb_ttech -F c -f /path/to/cmdb/backend/backups/cmdb-backup-\$(date +\%Y-\%m-\%d).dump >> /path/to/cmdb/logs/backup-cron.log 2>&1
+0 2 * * * /usr/bin/pg_dump -U postgres -d cmdb_hiberus -F c -f /path/to/cmdb/backend/backups/cmdb-backup-\$(date +\%Y-\%m-\%d).dump >> /path/to/cmdb/logs/backup-cron.log 2>&1
 ```
 
 #### Windows (Task Scheduler)
@@ -119,7 +132,7 @@ Crear tarea programada que ejecute `backend\scripts\backup.bat` diariamente.
 pm2 stop cmdb-backend
 
 # Restaurar backup PostgreSQL
-pg_restore -U postgres -d cmdb_ttech backups/cmdb-backup-YYYY-MM-DD.dump
+pg_restore -U postgres -d cmdb_hiberus backups/cmdb-backup-YYYY-MM-DD.dump
 
 # Iniciar el backend
 pm2 start cmdb-backend
@@ -143,7 +156,7 @@ Rotación automática: los archivos rotan a los 5 MB.
 
 ### Health check
 ```bash
-curl https://cmdb.ttech.com/api/health
+curl http://localhost:5000/api/health
 ```
 
 ### PM2 Plus (opcional)

@@ -1,32 +1,36 @@
 const { Pool } = require('pg');
+require('dotenv').config();
 
 async function check() {
   const pool = new Pool({
-    host: 'localhost',
-    port: 5433,
-    database: 'railway',
-    user: 'postgres',
-    password: 'wuDGHPWKJFrgCHvqtbzGxKELDjPfxkgm',
-    max: 1
+    host: process.env.PG_HOST || 'localhost',
+    port: parseInt(process.env.PG_PORT || '5432'),
+    database: process.env.PG_DATABASE || 'cmdb_hiberus',
+    user: process.env.PG_USER || 'postgres',
+    password: process.env.PG_PASSWORD || '',
+    max: 1,
+    connectionTimeoutMillis: 5000
   });
+
   try {
-    const users = await pool.query('SELECT email, rol, nombre FROM usuarios');
-    console.log('Users:', JSON.stringify(users.rows));
+    const db = await pool.query('SELECT current_database() AS db, version() AS version');
+    console.log('Base de datos:', db.rows[0].db);
+    console.log('Servidor:', db.rows[0].version.split(',')[0]);
 
-    const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name");
-    console.log('Tables:', JSON.stringify(tables.rows));
+    const tables = await pool.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+    );
+    console.log('\nTablas:', tables.rows.map(t => t.table_name).join(', ') || '(ninguna)');
 
-    const cols = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'plataformas' ORDER BY ordinal_position");
-    console.log('Plataformas columns:', JSON.stringify(cols.rows.map(r => r.column_name)));
-
-    const count = await pool.query('SELECT COUNT(*) as count FROM activos');
-    console.log('Assets:', count.rows[0].count);
+    for (const t of ['activos', 'clientes', 'plataformas', 'usuarios', 'activo_administrador', 'historial_activo']) {
+      const r = await pool.query(`SELECT COUNT(*)::int AS n FROM ${t}`);
+      console.log(`  ${t}: ${r.rows[0].n}`);
+    }
   } catch (e) {
-    console.error('Error:', e);
-    console.error('Stack:', e.stack);
+    console.error('Error:', e.message);
+    process.exitCode = 1;
   } finally {
     await pool.end();
-    process.exit(0);
   }
 }
 

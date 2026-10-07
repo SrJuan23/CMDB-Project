@@ -1,4 +1,4 @@
-const http = require('http');
+﻿const http = require('http');
 
 function apiRequest(port, method, path, body, token) {
   return new Promise((resolve, reject) => {
@@ -31,7 +31,7 @@ function apiRequest(port, method, path, body, token) {
 
 async function test() {
   console.log('--- Testing API through Vite proxy on 5174 ---');
-  const login = await apiRequest(5174, 'POST', '/api/auth/login', { email: 'admin@ttech.com', password: 'Admin123!*' });
+  const login = await apiRequest(5174, 'POST', '/api/auth/login', { email: 'admin@hiberus.com', password: 'Admin123!*' });
   console.log('Login 5174:', login.status);
   if (login.status !== 200) { console.log('Error:', JSON.stringify(login.data)); return; }
   const token = login.data.token;
@@ -46,7 +46,7 @@ async function test() {
   console.log('Dashboard 5174:', dash.status);
 
   console.log('\n--- Testing API directly on 5000 ---');
-  const login2 = await apiRequest(5000, 'POST', '/api/auth/login', { email: 'admin@ttech.com', password: 'Admin123!*' });
+  const login2 = await apiRequest(5000, 'POST', '/api/auth/login', { email: 'admin@hiberus.com', password: 'Admin123!*' });
   console.log('Login 5000:', login2.status);
   const token2 = login2.data.token;
   const clientes2 = await apiRequest(5000, 'GET', '/api/clientes', null, token2);

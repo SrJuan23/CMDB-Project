@@ -30,7 +30,7 @@ function apiRequest(method, path, body, token) {
 }
 
 async function test() {
-  const login = await apiRequest('POST', '/api/auth/login', { email: 'admin@ttech.com', password: 'Admin123!*' });
+  const login = await apiRequest('POST', '/api/auth/login', { email: 'admin@hiberus.com', password: 'Admin123!*' });
   console.log('Login:', login.status);
   const token = login.data.token;
   console.log('Token starts:', token.substring(0, 30));

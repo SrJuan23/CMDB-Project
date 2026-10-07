@@ -6,7 +6,7 @@ Aplicación web empresarial para la gestión de una CMDB (Configuration Manageme
 
 - **Frontend**: TypeScript + Vite + Tailwind CSS + Chart.js
 - **Backend**: Node.js + Express + TypeScript
-- **Base de datos**: PostgreSQL (producción) / SQLite (desarrollo)
+- **Base de datos**: PostgreSQL 16 (local)
 - **Auth**: JWT + bcrypt
 
 ## Requisitos
@@ -53,9 +53,9 @@ npm run seed
 
 | Rol | Email | Password |
 |-----|-------|----------|
-| ADMIN | admin@ttech.com | Admin123!* |
-| GESTOR | gestor@ttech.com | Gestor123!* |
-| CONSULTA | consulta@ttech.com | Consulta123!* |
+| ADMIN | admin@hiberus.com | Admin123!* |
+| GESTOR | gestor@hiberus.com | Gestor123!* |
+| CONSULTA | consulta@hiberus.com | Consulta123!* |
 
 ## Endpoints Principales
 
@@ -95,6 +95,7 @@ PUT    /api/config
 ## Notas
 
 - El archivo `backend/.env` **no** se versiona. Copiá desde `.env.example`.
-- Para producción, cambiá `JWT_SECRET` y configurá `DB_TYPE=postgres`.
-- Los seeds por defecto son solo para desarrollo.  
+- Para producción, cambiá `JWT_SECRET`.
+- Los seeds por defecto son solo para desarrollo.
 - Backend sirve el frontend build si existe `frontend/dist/`.
+- Para crear la base de datos e importar un Excel: `node backend/scripts/import_excel.js <ruta.xlsx>`.
