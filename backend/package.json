@@ -8,13 +8,13 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "seed": "tsx src/db/seed.ts",
+    "migrate": "node dist/db/migrate.js",
     "backup": "node scripts/backup.js",
     "pm2:start": "pm2 start ecosystem.config.cjs --env production",
     "pm2:stop": "pm2 stop cmdb-backend",
     "pm2:restart": "pm2 restart cmdb-backend",
     "pm2:logs": "pm2 logs cmdb-backend",
-    "pm2:status": "pm2 status",
-    "postbuild": "node -e \"const fs=require('fs');if(fs.existsSync('../frontend/dist')){fs.cpSync('../frontend/dist', './public', { recursive: true });console.log('Frontend assets copied to public/');}else{console.log('No frontend/dist found, skipping asset copy');}\""
+    "pm2:status": "pm2 status"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

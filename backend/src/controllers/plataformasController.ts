@@ -7,7 +7,7 @@ export async function getPlataformas(req: AuthenticatedRequest, res: Response) {
   try {
     const plataformas = await getAll(`
       SELECT 
-        p.id, p.nombre, p.sku, p.descripcion, p.estado, p.created_at,
+        p.id, p.nombre, p.sku, p.pet, p.descripcion, p.estado, p.created_at,
         COUNT(a.id) AS total_activos,
         SUM(CASE WHEN a.estado = 'ACTIVO' THEN 1 ELSE 0 END) AS activos_count,
         SUM(CASE WHEN a.estado = 'INACTIVO' THEN 1 ELSE 0 END) AS inactivos_count
@@ -20,14 +20,14 @@ export async function getPlataformas(req: AuthenticatedRequest, res: Response) {
     const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    const allActivos = await getAll('SELECT plataforma_id, fin_gestion FROM activos');
+    const allActivos = await getAll('SELECT plataforma_id, fin_servicio FROM activos');
 
     const enriched = plataformas.map(p => {
       let vencidos = 0;
       allActivos
         .filter(a => a.plataforma_id === p.id)
         .forEach(a => {
-          const vig = calculateVigencia(a.fin_gestion, threshold);
+          const vig = calculateVigencia(a.fin_servicio, threshold);
           if (vig.estado_vigencia === 'VENCIDO') vencidos++;
         });
 
@@ -57,7 +57,9 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
     const activos = await getAll(`
       SELECT 
         a.id, a.codigo, a.hostname, a.serial_number, a.ip_url_gestion, a.generacion_actas,
-        a.pet, a.nombre_proyecto, a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.nombre_proyecto, a.cogestion, a.inicio_servicio, a.fin_servicio,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         c.nombre AS cliente_nombre
       FROM activos a
@@ -68,12 +70,14 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
 
     const enriched = activos.map(a => ({
       ...a,
-      vigencia: calculateVigencia(a.fin_gestion),
-      dias_restantes: calculateVigencia(a.fin_gestion).dias_restantes,
-      estado_vigencia: calculateVigencia(a.fin_gestion).estado_vigencia,
-      inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
-      fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
-      generacion_actas_formateada: formatDateSpanish(a.generacion_actas)
+      vigencia: calculateVigencia(a.fin_servicio),
+      dias_restantes: calculateVigencia(a.fin_servicio).dias_restantes,
+      estado_vigencia: calculateVigencia(a.fin_servicio).estado_vigencia,
+      inicio_servicio_formateada: formatDateSpanish(a.inicio_servicio),
+      fin_servicio_formateada: formatDateSpanish(a.fin_servicio),
+      generacion_actas_formateada: formatDateSpanish(a.generacion_actas),
+      fecha_finalizacion_licencias_formateada: formatDateSpanish(a.fecha_finalizacion_licencias),
+      fecha_activacion_licencias_formateada: formatDateSpanish(a.fecha_activacion_licencias)
     }));
 
     return res.json({ plataforma, activos: enriched });
@@ -84,14 +88,15 @@ export async function getPlataformaActivos(req: AuthenticatedRequest, res: Respo
 
 export async function createPlataforma(req: AuthenticatedRequest, res: Response) {
   try {
-    const { nombre, sku, descripcion, estado = 'ACTIVO' } = req.body;
+    const { nombre, sku, pet, descripcion, estado = 'ACTIVO' } = req.body;
     if (!nombre) {
       return res.status(400).json({ error: 'El nombre de la plataforma es obligatorio' });
     }
 
-    const resDb = await run('INSERT INTO plataformas (nombre, sku, descripcion, estado) VALUES (?, ?, ?, ?)', [
+    const resDb = await run('INSERT INTO plataformas (nombre, sku, pet, descripcion, estado) VALUES (?, ?, ?, ?, ?)', [
       nombre.trim(),
       sku ? sku.trim() : null,
+      pet ? pet.trim() : null,
       descripcion ? descripcion.trim() : null,
       estado
     ]);
@@ -105,16 +110,17 @@ export async function createPlataforma(req: AuthenticatedRequest, res: Response)
 export async function updatePlataforma(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { nombre, sku, descripcion, estado } = req.body;
+    const { nombre, sku, pet, descripcion, estado } = req.body;
 
     await run(`
       UPDATE plataformas SET
         nombre = COALESCE(?, nombre),
         sku = COALESCE(?, sku),
+        pet = COALESCE(?, pet),
         descripcion = COALESCE(?, descripcion),
         estado = COALESCE(?, estado)
       WHERE id = ?
-    `, [nombre ? nombre.trim() : null, sku ? sku.trim() : null, descripcion ? descripcion.trim() : null, estado, id]);
+    `, [nombre ? nombre.trim() : null, sku ? sku.trim() : null, pet ? pet.trim() : null, descripcion ? descripcion.trim() : null, estado, id]);
 
     return res.json({ message: 'Plataforma actualizada con éxito' });
   } catch (error: any) {

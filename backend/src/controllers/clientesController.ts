@@ -20,7 +20,7 @@ export async function getClientes(req: AuthenticatedRequest, res: Response) {
     const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
-    const allActivos = await getAll('SELECT cliente_id, fin_gestion, estado FROM activos');
+    const allActivos = await getAll('SELECT cliente_id, fin_servicio, estado FROM activos');
 
     const enriched = clientes.map(c => {
       let vencidos = 0;
@@ -29,7 +29,7 @@ export async function getClientes(req: AuthenticatedRequest, res: Response) {
       allActivos
         .filter(a => a.cliente_id === c.id)
         .forEach(a => {
-          const vig = calculateVigencia(a.fin_gestion, threshold);
+          const vig = calculateVigencia(a.fin_servicio, threshold);
           if (vig.estado_vigencia === 'VENCIDO') vencidos++;
           if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximos++;
         });
@@ -65,8 +65,10 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
     const activos = await getAll(`
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
-        a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.nombre_proyecto,
+        a.cogestion, a.inicio_servicio, a.fin_servicio,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         p.nombre AS plataforma_nombre,
         p.sku AS plataforma_sku
@@ -85,7 +87,7 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
     const plataformasMap = new Map<string, number>();
 
     const enrichedActivos = activos.map(a => {
-      const vig = calculateVigencia(a.fin_gestion, threshold);
+      const vig = calculateVigencia(a.fin_servicio, threshold);
       if (a.estado === 'ACTIVO') activosCount++;
       if (a.estado === 'INACTIVO') inactivosCount++;
 
@@ -102,9 +104,11 @@ export async function getCliente360(req: AuthenticatedRequest, res: Response) {
         vigencia: vig,
         dias_restantes: vig.dias_restantes,
         estado_vigencia: vig.estado_vigencia,
-        inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
-        fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
-        generacion_actas_formateada: formatDateSpanish(a.generacion_actas)
+        inicio_servicio_formateada: formatDateSpanish(a.inicio_servicio),
+        fin_servicio_formateada: formatDateSpanish(a.fin_servicio),
+        generacion_actas_formateada: formatDateSpanish(a.generacion_actas),
+        fecha_finalizacion_licencias_formateada: formatDateSpanish(a.fecha_finalizacion_licencias),
+        fecha_activacion_licencias_formateada: formatDateSpanish(a.fecha_activacion_licencias)
       };
     });
 

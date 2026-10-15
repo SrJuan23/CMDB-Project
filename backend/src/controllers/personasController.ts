@@ -14,7 +14,8 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
         SUM(CASE WHEN a.estado = 'ACTIVO' THEN 1 ELSE 0 END) as activos_count,
         SUM(CASE WHEN a.estado = 'INACTIVO' THEN 1 ELSE 0 END) as inactivos_count
       FROM personas p
-      LEFT JOIN activo_administrador aa ON aa.persona_id = p.id
+      LEFT JOIN usuarios u ON LOWER(u.nombre) = LOWER(p.nombre)
+      LEFT JOIN activo_administrador aa ON aa.usuario_id = u.id
       LEFT JOIN activos a ON a.id = aa.activo_id
     `;
 
@@ -36,13 +37,14 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
 
     const adminActivos = await getAll(`
       SELECT
-        aa.persona_id, a.id AS activo_id, a.estado, a.fin_gestion
+        u.nombre AS persona_nombre, a.id AS activo_id, a.estado, a.fin_servicio
       FROM activo_administrador aa
+      JOIN usuarios u ON u.id = aa.usuario_id
       JOIN activos a ON a.id = aa.activo_id
     `);
 
     const result = personas.map(p => {
-      const personActivos = adminActivos.filter(a => a.persona_id === p.id);
+      const personActivos = adminActivos.filter(a => a.persona_nombre.toLowerCase() === p.nombre.toLowerCase());
 
       let vencidos = 0;
       let proximos = 0;
@@ -51,8 +53,8 @@ export async function getPersonas(req: AuthenticatedRequest, res: Response) {
       const threshold = 30;
 
       personActivos.forEach(a => {
-        if (!a.fin_gestion) return;
-        const vig = calculateVigencia(a.fin_gestion, threshold);
+        if (!a.fin_servicio) return;
+        const vig = calculateVigencia(a.fin_servicio, threshold);
         if (vig.estado_vigencia === 'VIGENTE') vigentes++;
         else if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximos++;
         else if (vig.estado_vigencia === 'VENCIDO') vencidos++;
@@ -87,8 +89,10 @@ export async function getPersonaById(req: AuthenticatedRequest, res: Response) {
     const activos = await getAll(`
       SELECT
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
-        a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.nombre_proyecto,
+        a.cogestion, a.inicio_servicio, a.fin_servicio,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
@@ -98,23 +102,26 @@ export async function getPersonaById(req: AuthenticatedRequest, res: Response) {
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
       JOIN activo_administrador aa ON a.id = aa.activo_id
-      WHERE aa.persona_id = ?
+      JOIN usuarios u ON u.id = aa.usuario_id
+      WHERE LOWER(u.nombre) = LOWER(?)
       ORDER BY a.id DESC
-    `, [parseInt(id, 10)]);
+    `, [persona.nombre]);
 
     const configRow = await getOne("SELECT valor FROM configuracion WHERE clave = 'dias_proximo_vencer'");
     const threshold = configRow ? parseInt(configRow.valor, 10) : 30;
 
     const enriched = activos.map(a => {
-      const vig = calculateVigencia(a.fin_gestion, threshold);
+      const vig = calculateVigencia(a.fin_servicio, threshold);
       return {
         ...a,
         vigencia: vig,
         dias_restantes: vig.dias_restantes,
         estado_vigencia: vig.estado_vigencia,
-        inicio_gestion_formateada: formatDateSpanish(a.inicio_gestion),
-        fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
-        generacion_actas_formateada: formatDateSpanish(a.generacion_actas)
+        inicio_servicio_formateada: formatDateSpanish(a.inicio_servicio),
+        fin_servicio_formateada: formatDateSpanish(a.fin_servicio),
+        generacion_actas_formateada: formatDateSpanish(a.generacion_actas),
+        fecha_finalizacion_licencias_formateada: formatDateSpanish(a.fecha_finalizacion_licencias),
+        fecha_activacion_licencias_formateada: formatDateSpanish(a.fecha_activacion_licencias)
       };
     });
 
@@ -206,7 +213,16 @@ export async function deletePersona(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'Persona no encontrada' });
     }
 
-    const activos = await getAll('SELECT id, codigo FROM activos WHERE EXISTS (SELECT 1 FROM activo_administrador aa WHERE aa.activo_id = activos.id AND aa.persona_id = ?)', [parseInt(id, 10)]);
+    const activos = await getAll(`
+      SELECT a.id, a.codigo
+      FROM activos a
+      WHERE EXISTS (
+        SELECT 1
+        FROM activo_administrador aa
+        JOIN usuarios u ON u.id = aa.usuario_id
+        WHERE aa.activo_id = a.id AND LOWER(u.nombre) = LOWER(?)
+      )
+    `, [persona.nombre]);
     if (activos.length > 0) {
       return res.status(400).json({
         error: `Esta persona tiene ${activos.length} activo(s) asignado(s) como administrador. Elimínalos primero.`,
@@ -214,7 +230,6 @@ export async function deletePersona(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    await run('DELETE FROM activo_administrador WHERE persona_id = ?', [parseInt(id, 10)]);
     await run('DELETE FROM personas WHERE id = ?', [parseInt(id, 10)]);
 
     return res.json({ message: `Persona ${persona.nombre} eliminada correctamente` });

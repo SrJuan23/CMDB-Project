@@ -1,12 +1,12 @@
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
-import { getOne, getAll, run, initDatabase } from './database';
+import { getOne, run, initDatabase } from './database';
 import { parseExcelBuffer, commitExcelImport } from '../services/excelService';
 
 export async function runSeed() {
   console.log('--- Initializing Hiberus CMDB Database ---');
-  initDatabase();
+  await initDatabase();
 
   const userCountRow = await getOne('SELECT COUNT(*) as count FROM usuarios');
   const userCount = userCountRow ? userCountRow.count : 0;
@@ -58,60 +58,7 @@ export async function runSeed() {
   }
 
   if (!loadedFromExcel) {
-    console.log('Excel file not found, creating sample data matching specification...');
-    const clientes = [
-      'DU BRANDS SAS', 'DEPARTAMENTO DE CORDOBA', 'SUCAMPO SULLANTA', 'CARRAZOS S A S',
-      'INVERSIONES CLINICA DEL META S.A.', 'ALCALDIA DE LEBRIJA', 'ENERGETICOS INTEGRALES LTDA',
-      'SUNNY APP SAS', 'COASPHARMA SAS', 'AGUAS DE BUGA S.A. E.S.P.',
-      'TERMINAL METROPOLITANA DE TRANSPORTES DE BARRANQUILLA', 'BANCO BOGOTA'
-    ];
-    for (const c of clientes) {
-      await run('INSERT INTO clientes (nombre, estado) VALUES (?, ?)', [c, 'ACTIVO']);
-    }
-
-    const plataformas = ['FortiEDR Cloud', 'FortiMail Cloud', 'DWDM FIBERNET', 'Palo Alto Panorama', 'Cisco DNA'];
-    for (const p of plataformas) {
-      await run('INSERT INTO plataformas (nombre, estado) VALUES (?, ?)', [p, 'ACTIVO']);
-    }
-
-    const sampleAssets = [
-      { codigo: 'ACT-000001', cliente_id: 1, hostname: 'FortiEDR MSSP', serial_number: 'FEDRPOTA25000025', plataforma_id: 1, ip_url_gestion: 'https://telefonicacolombia.fortiedr.com/login?logout', generacion_actas: '2025-06-30', pet: 'PET-001', nombre_proyecto: 'FortiEDR MSSP', cogestion: 'NO', inicio_gestion: '2024-04-24', fin_gestion: '2026-04-23', correo_soporte: 'te_soporte_seguridad@telefonica.com', soporte_n1: 'NO', pep: 'TE-FW-001', estado: 'ACTIVO' },
-      { codigo: 'ACT-000002', cliente_id: 9, hostname: 'FortiMail MSSP', serial_number: 'FEVMSPM000237464', plataforma_id: 2, ip_url_gestion: 'https://www.fortimailcloud.com/user/', generacion_actas: '2025-09-01', pet: 'PET-002', nombre_proyecto: 'Mail Security', cogestion: 'NO', inicio_gestion: '2024-07-25', fin_gestion: '2025-07-24', correo_soporte: 'soporte.tech@telefonica.com', soporte_n1: 'SI', pep: 'TE-MAIL-001', estado: 'INACTIVO' },
-      { codigo: 'ACT-000003', cliente_id: 12, hostname: 'OSW3-W', serial_number: '25534', plataforma_id: 3, ip_url_gestion: '10.120.45.12', generacion_actas: '2026-01-01', pet: 'PET-003', nombre_proyecto: 'OSW3-W', cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-20', correo_soporte: null, soporte_n1: 'SI', pep: 'CO-INFRA-01', estado: 'ACTIVO' },
-      { codigo: 'ACT-000004', cliente_id: 12, hostname: 'UNIDAD ALIMENTACIÓN', serial_number: '24402', plataforma_id: 3, ip_url_gestion: '10.120.45.13', generacion_actas: '2026-01-01', pet: 'PET-003', nombre_proyecto: 'OSW3-W', cogestion: 'SI', inicio_gestion: '2024-01-15', fin_gestion: '2026-09-08', correo_soporte: null, soporte_n1: 'SI', pep: 'CO-INFRA-01', estado: 'ACTIVO' },
-      { codigo: 'ACT-000005', cliente_id: 4, hostname: 'UNIDAD DE AIREACIÓN', serial_number: '22378', plataforma_id: 3, ip_url_gestion: 'N/A', generacion_actas: null, pet: 'PET-004', nombre_proyecto: 'AC-001', cogestion: 'NO', inicio_gestion: '2023-11-01', fin_gestion: '2026-08-15', correo_soporte: null, soporte_n1: 'NO', pep: 'CO-INFRA-02', estado: 'ACTIVO' }
-    ];
-
-    for (const asset of sampleAssets) {
-      await run(`
-        INSERT INTO activos (
-          codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-          generacion_actas, pet, nombre_proyecto,
-          cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
-          pep, estado, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `, [
-        asset.codigo, asset.cliente_id, asset.hostname, asset.serial_number, asset.plataforma_id,
-        asset.ip_url_gestion, asset.generacion_actas, asset.pet, asset.nombre_proyecto,
-        asset.cogestion, asset.inicio_gestion, asset.fin_gestion,
-        asset.correo_soporte, asset.soporte_n1, asset.pep, asset.estado
-      ]);
-    }
-  }
-
-  const ticketsCountRow = await getOne('SELECT COUNT(*) as count FROM tickets_relacionados');
-  const ticketsCount = ticketsCountRow ? ticketsCountRow.count : 0;
-  if (ticketsCount === 0) {
-    const assets = await getAll('SELECT id, codigo FROM activos LIMIT 10');
-    for (let i = 0; i < Math.min(3, assets.length); i++) {
-      const a = assets[i];
-      await run('INSERT INTO tickets_relacionados (activo_id, ticket_codigo, titulo, estado, prioridad) VALUES (?, ?, ?, ?, ?)', [
-        a.id, `TCK-${100 + i * 12}`, 'Mantenimiento preventivo y actualización de firmware', 'RESUELTO', 'MEDIA'
-      ]);
-      await run('INSERT INTO tickets_relacionados (activo_id, ticket_codigo, titulo, estado, prioridad) VALUES (?, ?, ?, ?, ?)', [
-        a.id, `TCK-${142 + i * 7}`, 'Alerta de conectividad y latencia intermitente', 'ABIERTO', 'ALTA'
-      ]);
-    }
+    console.log('No initial asset spreadsheet found. No sample records were added.');
   }
 
   const finalTotalRow = await getOne('SELECT COUNT(*) as count FROM activos');

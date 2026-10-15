@@ -2,7 +2,7 @@ import { initDatabase } from './database';
 
 /**
  * Migration script: ensures new columns/tables exist for PostgreSQL.
- * Run with: npx tsx src/db/migrate.ts
+ * Run with: npm run migrate
  */
 export async function runMigration() {
   console.log('=== Starting Hiberus CMDB Migration ===');

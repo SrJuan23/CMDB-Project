@@ -32,11 +32,12 @@ export interface Activo {
   plataforma_id: number;
   ip_url_gestion: string;
   generacion_actas?: string | null;
-  pet?: string | null;
   nombre_proyecto?: string | null;
   cogestion: 'SI' | 'NO';
-  inicio_gestion: string | null;
-  fin_gestion: string | null;
+  inicio_servicio: string | null;
+  fin_servicio: string | null;
+  fecha_finalizacion_licencias: string | null;
+  fecha_activacion_licencias: string | null;
   correo_soporte: string | null;
   soporte_n1: 'SI' | 'NO';
   pep?: string | null;
@@ -52,9 +53,11 @@ export interface Activo {
   vigencia: VigenciaInfo;
   dias_restantes: number | null;
   estado_vigencia: 'VIGENTE' | 'PRÓXIMO A VENCER' | 'VENCIDO' | 'SIN FECHA';
-  inicio_gestion_formateada: string;
-  fin_gestion_formateada: string;
+  inicio_servicio_formateada: string;
+  fin_servicio_formateada: string;
   generacion_actas_formateada?: string;
+  fecha_finalizacion_licencias_formateada: string;
+  fecha_activacion_licencias_formateada: string;
   tickets_relacionados?: any[];
   historial?: any[];
 }
@@ -76,6 +79,7 @@ export interface Plataforma {
   id: number;
   nombre: string;
   sku?: string | null;
+  pet?: string | null;
   descripcion?: string | null;
   estado: 'ACTIVO' | 'INACTIVO';
   created_at: string;
@@ -155,8 +159,8 @@ export interface DashboardStats {
     cliente_nombre: string;
     plataforma_nombre: string;
     administradores_str: string;
-    fin_gestion: string | null;
-    fin_gestion_formateada: string;
+    fin_servicio: string | null;
+    fin_servicio_formateada: string;
     dias_restantes: number;
     texto_vigencia: string;
     estado_vigencia: string;

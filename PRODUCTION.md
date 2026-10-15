@@ -5,22 +5,26 @@
 - Node.js >= 18
 - npm >= 9
 - PM2 (opcional pero recomendado): `npm install -g pm2`
-- PostgreSQL 16 instalado y ejecutándose localmente (servicio `postgresql-x64-16`, puerto 5432)
+- PostgreSQL 16 instalado y accesible desde el backend (puerto 5432)
 
 ---
 
 ## 1. Build de producción
 
 ```bash
-# Backend
+# Backend (incluye dependencias de desarrollo para compilar TypeScript)
 cd backend
-npm install --production
+npm install
 npm run build
 
 # Frontend
 cd ../frontend
 npm install
 npm run build
+
+# En backend, elimina las dependencias de desarrollo después de compilar
+cd ../backend
+npm prune --omit=dev
 ```
 
 El build del frontend se genera en `frontend/dist/`. El backend sirve automáticamente el frontend si detecta esta carpeta.
@@ -29,14 +33,38 @@ El build del frontend se genera en `frontend/dist/`. El backend sirve automátic
 
 ## 1.1. Crear la base de datos y cargar el Excel
 
-Una sola vez, después de configurar `backend/.env`:
+Para una base nueva, carga primero el dump PostgreSQL de migración en una base vacía:
 
 ```bash
-cd backend
-node scripts/import_excel.js "C:\ruta\al\archivo.xlsx"
+psql -h <host> -p <puerto> -U <usuario> -d <base_vacía> -f "C:\ruta\CMDB_MIGRACION.sql"
 ```
 
-El script crea la base `cmdb_hiberus` si no existe, genera el schema completo, inserta los usuarios base e importa las hojas del Excel. Es idempotente por `serial_number`: al reejecutarlo actualiza los registros existentes en lugar de duplicarlos. Si el Excel no trae la columna, se puede omitir el argumento para solo crear la estructura.
+Configura `backend/.env` para apuntar a esa base y arranca la aplicación. `initDatabase()` aplica las columnas y migraciones pendientes automáticamente: renombra las fechas de gestión a fechas de servicio, conserva sus valores, consolida `pet`/`pep_` de activos en `pep` y crea las fechas de licencias. La base debe estar vacía al importar el dump; no se debe ejecutar sobre una base que ya tenga las mismas tablas.
+
+En bases existentes, el arranque aplica esos cambios de esquema sobre sus datos; no importa automáticamente el dump ni elimina registros existentes, salvo las columnas retiradas que se consolidan en `pep`. El seed dejó de crear clientes, activos y tickets de ejemplo. Si se quiere cargar registros desde Excel, se puede usar `node scripts/import_excel.js "C:\ruta\al\archivo.xlsx"`.
+
+## 1.2. Actualizar en Ubuntu Server por SSH
+
+La migración usa PostgreSQL y lee `backend/.env`; no depende de Windows ni de una sesión SSH interactiva. En una base existente, respalda primero la base y luego ejecuta desde la carpeta de la aplicación:
+
+```bash
+cd /ruta/a/CMDB-Project
+git pull origin main
+
+cd frontend
+npm install
+npm run build
+
+cd ../backend
+npm install
+npm run build
+npm run migrate
+npm prune --omit=dev
+pm2 restart cmdb-backend --update-env
+pm2 save
+```
+
+`npm run migrate` aplica el esquema de forma idempotente usando la conexión definida en `backend/.env`; si falla, no reinicies el servicio y revisa el error y los permisos PostgreSQL. El backend también aplica la migración al arrancar. No hace falta copiar el dump a una base existente. Para crear una base nueva con los datos del dump, copia el archivo SQL al servidor de forma segura y restáuralo una sola vez en una base vacía antes del primer arranque. No compartas claves privadas SSH ni contraseñas; utiliza la cuenta y el procedimiento de despliegue autorizados por la empresa.
 
 ---
 

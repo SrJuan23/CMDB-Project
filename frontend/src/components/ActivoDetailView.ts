@@ -77,17 +77,31 @@ export function initActivoDetailView(activoId: number): void {
           <div class="space-y-3 text-sm">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <div class="text-xs text-slate-500 font-heading mb-0.5">Inicio</div>
-                <div class="font-medium text-slate-700">${activo.inicio_gestion_formateada}</div>
+                <div class="text-xs text-slate-500 font-heading mb-0.5">Inicio de servicio</div>
+                <div class="font-medium text-slate-700">${activo.inicio_servicio_formateada}</div>
               </div>
               <div>
-                <div class="text-xs text-slate-500 font-heading mb-0.5">Fin</div>
-                <div class="font-medium text-slate-700">${activo.fin_gestion_formateada}</div>
+                <div class="text-xs text-slate-500 font-heading mb-0.5">Fin de servicio</div>
+                <div class="font-medium text-slate-700">${activo.fin_servicio_formateada}</div>
               </div>
             </div>
             <div>
               <div class="text-xs text-slate-500 font-heading mb-0.5">Días restantes</div>
               <div class="font-bold text-[#19255A] text-lg font-heading">${activo.dias_restantes !== null ? activo.dias_restantes : 'Sin fecha'}</div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="text-xs text-slate-500 font-heading mb-0.5">Activación de licencias</div>
+                <div class="font-medium text-slate-700">${activo.fecha_activacion_licencias_formateada}</div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-500 font-heading mb-0.5">Finalización de licencias</div>
+                <div class="font-medium text-slate-700">${activo.fecha_finalizacion_licencias_formateada}</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 font-heading mb-0.5">Generación de actas</div>
+              <div class="font-medium text-slate-700">${activo.generacion_actas_formateada || 'N/A'}</div>
             </div>
             <div>
               <div class="text-xs text-slate-500 font-heading mb-0.5">Cogestión</div>

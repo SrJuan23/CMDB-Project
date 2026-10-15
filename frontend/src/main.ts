@@ -701,14 +701,14 @@ function showActivoForm(activo?: any) {
             </select>
           </div>
 
-          <!-- Fechas de Gestión -->
+          <!-- Fechas del Servicio -->
           <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Inicio de Gestión</label>
-            <input type="date" id="f-ini" value="${activo?.inicio_gestion || ''}" class="cmdb-input text-xs" />
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Inicio del Servicio</label>
+            <input type="date" id="f-ini" value="${activo?.inicio_servicio || ''}" class="cmdb-input text-xs" />
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Fin de Gestión (Vencimiento)</label>
-            <input type="date" id="f-fin" value="${activo?.fin_gestion || ''}" class="cmdb-input text-xs" />
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Fin del Servicio (Vencimiento)</label>
+            <input type="date" id="f-fin" value="${activo?.fin_servicio || ''}" class="cmdb-input text-xs" />
           </div>
 
           <!-- Correo Soporte -->
@@ -735,12 +735,6 @@ function showActivoForm(activo?: any) {
             </select>
           </div>
 
-          <!-- PET -->
-          <div>
-            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">PET</label>
-            <input type="text" id="f-pet" value="${activo?.pet || ''}" class="cmdb-input text-xs" placeholder="PET-001" />
-          </div>
-
           <!-- Nombre del Proyecto -->
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Nombre del Proyecto</label>
@@ -751,6 +745,16 @@ function showActivoForm(activo?: any) {
           <div>
             <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Generación de Actas</label>
             <input type="date" id="f-generacion-actas" value="${activo?.generacion_actas || ''}" class="cmdb-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Activación de Licencias</label>
+            <input type="date" id="f-fecha-activacion-licencias" value="${activo?.fecha_activacion_licencias || ''}" class="cmdb-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Finalización de Licencias</label>
+            <input type="date" id="f-fecha-finalizacion-licencias" value="${activo?.fecha_finalizacion_licencias || ''}" class="cmdb-input text-xs" />
           </div>
 
           <!-- Código PEP -->
@@ -807,14 +811,15 @@ function showActivoForm(activo?: any) {
       plataforma_id: (document.getElementById('f-plat') as HTMLSelectElement).value,
       ip_url_gestion: (document.getElementById('f-url') as HTMLInputElement).value,
       cogestion: (document.getElementById('f-cog') as HTMLSelectElement).value,
-      inicio_gestion: (document.getElementById('f-ini') as HTMLInputElement).value || null,
-      fin_gestion: (document.getElementById('f-fin') as HTMLInputElement).value || null,
+      inicio_servicio: (document.getElementById('f-ini') as HTMLInputElement).value || null,
+      fin_servicio: (document.getElementById('f-fin') as HTMLInputElement).value || null,
       correo_soporte: (document.getElementById('f-mail') as HTMLInputElement).value || null,
       soporte_n1: (document.getElementById('f-n1') as HTMLSelectElement).value,
       estado: (document.getElementById('f-est') as HTMLSelectElement).value,
-      pet: (document.getElementById('f-pet') as HTMLInputElement).value || null,
       nombre_proyecto: (document.getElementById('f-nombre-proyecto') as HTMLInputElement).value || null,
       generacion_actas: (document.getElementById('f-generacion-actas') as HTMLInputElement).value || null,
+      fecha_activacion_licencias: (document.getElementById('f-fecha-activacion-licencias') as HTMLInputElement).value || null,
+      fecha_finalizacion_licencias: (document.getElementById('f-fecha-finalizacion-licencias') as HTMLInputElement).value || null,
       pep: (document.getElementById('f-pep') as HTMLInputElement).value || null,
       administradores_ids: checkedAdmins
     };
@@ -912,6 +917,10 @@ function showPlataformaForm(plataforma?: any) {
           <input type="text" id="f-plat-sku" value="${plataforma?.sku || ''}" class="cmdb-input text-xs" placeholder="Ej: FG-VM-100, PAN-OS-11" />
         </div>
         <div>
+          <label class="block text-xs font-bold text-slate-600 font-heading mb-1">PET</label>
+          <input type="text" id="f-plat-pet" value="${plataforma?.pet || ''}" class="cmdb-input text-xs" placeholder="PET-001" />
+        </div>
+        <div>
           <label class="block text-xs font-bold text-slate-600 font-heading mb-1">Descripción</label>
           <textarea id="f-plat-desc" class="cmdb-input text-xs" rows="3" placeholder="Detalles de la plataforma o versión...">${plataforma?.descripcion || ''}</textarea>
         </div>
@@ -934,6 +943,7 @@ function showPlataformaForm(plataforma?: any) {
     const data = {
       nombre: (document.getElementById('f-plat-nom') as HTMLInputElement).value.trim(),
       sku: (document.getElementById('f-plat-sku') as HTMLInputElement).value.trim() || null,
+      pet: (document.getElementById('f-plat-pet') as HTMLInputElement).value.trim() || null,
       descripcion: (document.getElementById('f-plat-desc') as HTMLTextAreaElement).value.trim() || null
     };
     try {

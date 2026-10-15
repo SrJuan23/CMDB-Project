@@ -48,7 +48,7 @@ export function initPlataformaDetailView(plataformaId: number): void {
                   <td class="px-4 py-3"><button data-view-cliente="${a.cliente_id}" class="text-slate-700 hover:text-[#0945F7] hover:underline font-medium">${a.cliente_nombre}</button></td>
                   <td class="px-4 py-3 font-medium text-slate-700">${a.hostname}</td>
                   <td class="px-4 py-3"><span class="${a.estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo'}">${a.estado}</span></td>
-                  <td class="px-4 py-3 text-xs text-slate-600">${a.fin_gestion_formateada}</td>
+                  <td class="px-4 py-3 text-xs text-slate-600">${a.fin_servicio_formateada}</td>
                   <td class="px-4 py-3"><span class="${a.vigencia.badge_color === 'danger' ? 'badge-vencido' : a.vigencia.badge_color === 'warning' ? 'badge-proximo' : 'badge-vigente'}">${a.vigencia.texto_vigencia}</span></td>
                 </tr>
               `).join('')}

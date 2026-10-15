@@ -205,7 +205,7 @@ function renderAtencion(atencion: DashboardStats['atencion_requerida']) {
                 <td class="px-5 py-3 font-semibold text-[#19255A] max-w-[180px] truncate" title="${item.cliente_nombre}">${item.cliente_nombre}</td>
                 <td class="px-5 py-3 font-medium text-slate-700">${item.hostname}</td>
                 <td class="px-5 py-3 text-slate-600 text-xs"><span class="px-2 py-0.5 bg-[#EDF0FF] text-[#0945F7] rounded font-semibold text-[11px] font-heading">${item.plataforma_nombre}</span></td>
-                <td class="px-5 py-3 text-xs text-slate-600 whitespace-nowrap">${item.fin_gestion_formateada}</td>
+                <td class="px-5 py-3 text-xs text-slate-600 whitespace-nowrap">${item.fin_servicio_formateada}</td>
                 <td class="px-5 py-3 whitespace-nowrap">
                   <span class="${item.badge_color === 'danger' ? 'badge-vencido' : item.badge_color === 'warning' ? 'badge-proximo' : 'badge-vigente'}">${item.texto_vigencia}</span>
                 </td>

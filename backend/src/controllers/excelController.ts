@@ -100,11 +100,14 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
     let query = `
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
-        a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.nombre_proyecto,
+        a.cogestion, a.inicio_servicio, a.fin_servicio,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado,
         c.nombre AS cliente_nombre,
-        p.nombre AS plataforma_nombre
+        p.nombre AS plataforma_nombre,
+        p.pet AS plataforma_pet
       FROM activos a
       JOIN clientes c ON a.cliente_id = c.id
       JOIN plataformas p ON a.plataforma_id = p.id
@@ -160,7 +163,7 @@ export async function exportActivos(req: AuthenticatedRequest, res: Response) {
     let filtered = rawRows;
     if (vigencia || dias_rango) {
       filtered = rawRows.filter(row => {
-        const vig = calculateVigencia(row.fin_gestion);
+        const vig = calculateVigencia(row.fin_servicio);
         if (vigencia) {
           const v = vigencia.toUpperCase();
           if (v === 'VIGENTE' && vig.estado_vigencia !== 'VIGENTE') return false;

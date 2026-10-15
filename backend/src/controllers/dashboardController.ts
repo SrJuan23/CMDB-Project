@@ -10,7 +10,7 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
 
     const allActivos = await getAll(`
       SELECT 
-        a.id, a.codigo, a.hostname, a.serial_number, a.estado, a.fin_gestion,
+        a.id, a.codigo, a.hostname, a.serial_number, a.estado, a.fin_servicio,
         a.cogestion, a.soporte_n1, a.cliente_id, a.plataforma_id,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre
@@ -64,7 +64,7 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
         clienteCounts.set(a.cliente_nombre, (clienteCounts.get(a.cliente_nombre) || 0) + 1);
       }
 
-      const vig = calculateVigencia(a.fin_gestion, threshold);
+      const vig = calculateVigencia(a.fin_servicio, threshold);
       if (vig.estado_vigencia === 'VIGENTE') vigentesCount++;
       else if (vig.estado_vigencia === 'PRÓXIMO A VENCER') proximosCount++;
       else if (vig.estado_vigencia === 'VENCIDO') vencidosCount++;
@@ -86,8 +86,8 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
             serial_number: a.serial_number,
             cliente_nombre: a.cliente_nombre,
             plataforma_nombre: a.plataforma_nombre,
-            fin_gestion: a.fin_gestion,
-            fin_gestion_formateada: formatDateSpanish(a.fin_gestion),
+            fin_servicio: a.fin_servicio,
+            fin_servicio_formateada: formatDateSpanish(a.fin_servicio),
             dias_restantes: vig.dias_restantes,
             texto_vigencia: vig.texto_vigencia,
             estado_vigencia: vig.estado_vigencia,

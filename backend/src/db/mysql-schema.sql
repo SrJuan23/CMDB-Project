@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS clientes (
 CREATE TABLE IF NOT EXISTS plataformas (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(150) UNIQUE NOT NULL,
+  sku VARCHAR(100) NULL,
+  pet VARCHAR(100) NULL,
   descripcion TEXT NULL,
   estado ENUM('ACTIVO', 'INACTIVO') NOT NULL DEFAULT 'ACTIVO',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -47,9 +49,13 @@ CREATE TABLE IF NOT EXISTS activos (
   serial_number VARCHAR(150) NOT NULL,
   plataforma_id INT NOT NULL,
   ip_url_gestion TEXT NOT NULL,
+  generacion_actas DATE NULL,
+  nombre_proyecto VARCHAR(200) NULL,
   cogestion ENUM('SI', 'NO') NOT NULL DEFAULT 'NO',
-  inicio_gestion DATE NULL,
-  fin_gestion DATE NULL,
+  inicio_servicio DATE NULL,
+  fin_servicio DATE NULL,
+  `Fecha_finalización_licencias` DATE NULL,
+  `Fecha_activacion_licencias` DATE NULL,
   correo_soporte VARCHAR(200) NULL,
   soporte_n1 ENUM('SI', 'NO') NOT NULL DEFAULT 'NO',
   pep VARCHAR(100) NULL,
@@ -62,7 +68,7 @@ CREATE TABLE IF NOT EXISTS activos (
   INDEX idx_activos_cliente (cliente_id),
   INDEX idx_activos_plataforma (plataforma_id),
   INDEX idx_activos_serial (serial_number),
-  INDEX idx_activos_fin_gestion (fin_gestion)
+  INDEX idx_activos_fin_servicio (fin_servicio)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS activo_administrador (

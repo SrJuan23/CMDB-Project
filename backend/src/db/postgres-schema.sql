@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   password_hash VARCHAR(255),
   rol VARCHAR(20) NOT NULL DEFAULT 'GESTOR',
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
-  password_change_required BOOLEAN NOT NULL DEFAULT TRUE,
+  password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
   puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE,
   puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS plataformas (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(150) UNIQUE NOT NULL,
   sku VARCHAR(100) UNIQUE,
+  pet VARCHAR(100),
   descripcion TEXT,
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -40,18 +41,19 @@ CREATE TABLE IF NOT EXISTS activos (
   serial_number VARCHAR(150) NOT NULL,
   plataforma_id INTEGER NOT NULL REFERENCES plataformas(id) ON UPDATE CASCADE,
   ip_url_gestion TEXT NOT NULL,
-  generacion_actas DATE,
-  pet VARCHAR(100),
-  nombre_proyecto VARCHAR(200),
   cogestion VARCHAR(2) NOT NULL DEFAULT 'NO',
-  inicio_gestion DATE,
-  fin_gestion DATE,
+  inicio_servicio DATE,
+  fin_servicio DATE,
   correo_soporte VARCHAR(200),
   soporte_n1 VARCHAR(2) NOT NULL DEFAULT 'NO',
   pep VARCHAR(100),
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  generacion_actas DATE,
+  nombre_proyecto VARCHAR(200),
+  "Fecha_finalización_licencias" DATE,
+  "Fecha_activacion_licencias" DATE
 );
 
 CREATE TABLE IF NOT EXISTS historial_activo (
@@ -84,6 +86,6 @@ CREATE INDEX IF NOT EXISTS idx_activos_estado ON activos(estado);
 CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
 CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
-CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
+CREATE INDEX IF NOT EXISTS idx_activos_fin_servicio ON activos(fin_servicio);
 CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
 CREATE INDEX IF NOT EXISTS idx_plataformas_sku ON plataformas(sku);

@@ -14,8 +14,10 @@ export interface ExcelRowParsed {
   cogestion: string;
   soporte_n1: string;
   correo_soporte: string;
-  inicio_gestion: string | null;
-  fin_gestion: string | null;
+  inicio_servicio: string | null;
+  fin_servicio: string | null;
+  fecha_finalizacion_licencias: string | null;
+  fecha_activacion_licencias: string | null;
   pep: string;
   estado: 'ACTIVO' | 'INACTIVO';
   row_number: number;
@@ -103,12 +105,14 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
         soporteN1 = soporteN1.includes('S') ? 'SI' : 'NO';
       }
 
-      const inicioRaw = getVal(['Inicio\r\nGestion', 'Inicio Gestion', 'Inicio de Gestion', 'Fecha Inicio']);
-      const finRaw = getVal(['Fin Gestion', 'Fin de Gestion', 'Fecha Fin']);
+      const inicioRaw = getVal(['Inicio Servicio', 'Inicio de Servicio', 'Inicio Gestión', 'Inicio Gestion', 'Fecha Inicio']);
+      const finRaw = getVal(['Fin Servicio', 'Fin de Servicio', 'Fin Gestión', 'Fin Gestion', 'Fecha Fin']);
+      const fechaFinalizacionLicenciasRaw = getVal(['Fecha_finalización_licencias', 'Fecha finalización licencias', 'Fecha de finalización de licencias']);
+      const fechaActivacionLicenciasRaw = getVal(['Fecha_activacion_licencias', 'Fecha activación licencias', 'Fecha de activación de licencias']);
       const pep = cleanString(getVal(['PEP', 'Codigo PEP']));
 
-      const inicioGestion = parseExcelDate(inicioRaw);
-      const finGestion = parseExcelDate(finRaw);
+      const inicioServicio = parseExcelDate(inicioRaw);
+      const finServicio = parseExcelDate(finRaw);
 
       if (!cliente && !hostname && !serial) {
         return;
@@ -147,8 +151,10 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ImportPreviewRes
         cogestion,
         soporte_n1: soporteN1,
         correo_soporte: correo,
-        inicio_gestion: inicioGestion,
-        fin_gestion: finGestion,
+        inicio_servicio: inicioServicio,
+        fin_servicio: finServicio,
+        fecha_finalizacion_licencias: parseExcelDate(fechaFinalizacionLicenciasRaw),
+        fecha_activacion_licencias: parseExcelDate(fechaActivacionLicenciasRaw),
         pep,
         estado: defaultEstado,
         row_number: rowNum,
@@ -204,12 +210,17 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
     }
   };
 
-  const getOrCreatePlataforma = async (nombre: string): Promise<number> => {
+  const getOrCreatePlataforma = async (nombre: string, pet: string): Promise<number> => {
     const clean = cleanString(nombre);
-    let row = await getOne('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
-    if (row) return row.id;
+    let row = await getOne('SELECT id, pet FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
+    if (row) {
+      if (pet && !row.pet) {
+        await run('UPDATE plataformas SET pet = ? WHERE id = ?', [pet, row.id]);
+      }
+      return row.id;
+    }
     try {
-      const res = await run('INSERT INTO plataformas (nombre, estado) VALUES (?, ?)', [clean, 'ACTIVO']);
+      const res = await run('INSERT INTO plataformas (nombre, pet, estado) VALUES (?, ?, ?)', [clean, pet || null, 'ACTIVO']);
       return res.lastInsertRowid;
     } catch {
       const found = await getOne('SELECT id FROM plataformas WHERE LOWER(TRIM(nombre)) = LOWER(?)', [clean]);
@@ -228,7 +239,7 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
     for (const row of rows) {
       try {
         const clienteId = await getOrCreateCliente(row.cliente);
-        const plataformaId = await getOrCreatePlataforma(row.plataforma);
+        const plataformaId = await getOrCreatePlataforma(row.plataforma, row.pet);
 
         const existing = await getOne('SELECT id, codigo, estado FROM activos WHERE LOWER(TRIM(serial_number)) = LOWER(?)', [row.serial_number.trim()]);
 
@@ -236,14 +247,16 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
           await run(`
             UPDATE activos SET
               cliente_id = ?, hostname = ?, plataforma_id = ?, ip_url_gestion = ?,
-              generacion_actas = ?, pet = ?, nombre_proyecto = ?,
-              cogestion = ?, inicio_gestion = ?, fin_gestion = ?,
+              generacion_actas = ?, nombre_proyecto = ?,
+              cogestion = ?, inicio_servicio = ?, fin_servicio = ?,
+              "Fecha_finalización_licencias" = ?, "Fecha_activacion_licencias" = ?,
               correo_soporte = ?, soporte_n1 = ?, pep = ?, estado = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `, [
             clienteId, row.hostname, plataformaId, row.ip_url_gestion,
-            row.generacion_actas, row.pet || null, row.nombre_proyecto || null,
-            row.cogestion, row.inicio_gestion, row.fin_gestion,
+            row.generacion_actas, row.nombre_proyecto || null,
+            row.cogestion, row.inicio_servicio, row.fin_servicio,
+            row.fecha_finalizacion_licencias, row.fecha_activacion_licencias,
             row.correo_soporte || null, row.soporte_n1, row.pep, row.estado, existing.id
           ]);
 
@@ -260,14 +273,16 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
           const res = await run(`
             INSERT INTO activos (
               codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-              generacion_actas, pet, nombre_proyecto,
-              cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+              generacion_actas, nombre_proyecto,
+              cogestion, inicio_servicio, fin_servicio, "Fecha_finalización_licencias",
+              "Fecha_activacion_licencias", correo_soporte, soporte_n1,
               pep, estado, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           `, [
             codigo, clienteId, row.hostname, row.serial_number, plataformaId,
-            row.ip_url_gestion, row.generacion_actas, row.pet || null, row.nombre_proyecto || null,
-            row.cogestion, row.inicio_gestion, row.fin_gestion,
+            row.ip_url_gestion, row.generacion_actas, row.nombre_proyecto || null,
+            row.cogestion, row.inicio_servicio, row.fin_servicio,
+            row.fecha_finalizacion_licencias, row.fecha_activacion_licencias,
             row.correo_soporte || null, row.soporte_n1, row.pep, row.estado
           ]);
 
@@ -291,7 +306,7 @@ export async function commitExcelImport(rows: ExcelRowParsed[], usuarioNombre = 
 
 export function exportActivosToExcel(activos: any[]): Buffer {
   const data = activos.map(a => {
-    const vig = calculateVigencia(a.fin_gestion);
+    const vig = calculateVigencia(a.fin_servicio);
     return {
       'Código': a.codigo,
       'Estado': a.estado,
@@ -301,13 +316,15 @@ export function exportActivosToExcel(activos: any[]): Buffer {
       'Plataforma': a.plataforma_nombre,
       'IP / URL Gestión': a.ip_url_gestion,
       'Generación Actas': a.generacion_actas || 'N/A',
-      'PET': a.pet || 'N/A',
+      'PET': a.plataforma_pet || 'N/A',
       'Nombre del Proyecto': a.nombre_proyecto || 'N/A',
       'Cogestión': a.cogestion,
       'Soporte N1': a.soporte_n1,
       'Correo de Soporte': a.correo_soporte || 'N/A',
-      'Inicio Gestión': a.inicio_gestion || 'N/A',
-      'Fin Gestión': a.fin_gestion || 'N/A',
+      'Inicio Servicio': a.inicio_servicio || 'N/A',
+      'Fin Servicio': a.fin_servicio || 'N/A',
+      'Fecha Activación Licencias': a.fecha_activacion_licencias || 'N/A',
+      'Fecha Finalización Licencias': a.fecha_finalizacion_licencias || 'N/A',
       'Días Restantes': vig.dias_restantes !== null ? vig.dias_restantes : 'N/A',
       'Vigencia': vig.texto_vigencia,
       'Estado Vigencia': vig.estado_vigencia,
@@ -324,9 +341,10 @@ export function exportActivosToExcel(activos: any[]): Buffer {
 export function exportActivosToCSV(activos: any[]): string {
   const header = [
     'Código', 'Estado', 'Cliente', 'Hostname', 'Serial Number', 'Plataforma',
-    'IP / URL Gestión', 'Generación Actas', 'PET', 'Nombre del Proyecto',
-    'Cogestión', 'Soporte N1', 'Correo de Soporte', 'Inicio Gestión', 'Fin Gestión',
-    'Días Restantes', 'Vigencia', 'Estado Vigencia'
+    'IP / URL Gestión', 'Generación Actas', 'PET de Plataforma', 'Nombre del Proyecto',
+    'Cogestión', 'Soporte N1', 'Correo de Soporte', 'Inicio Servicio', 'Fin Servicio',
+    'Fecha Activación Licencias', 'Fecha Finalización Licencias',
+    'Días Restantes', 'Vigencia', 'Estado Vigencia', 'PEP'
   ];
 
   const escapeCSV = (val: any) => {
@@ -336,7 +354,7 @@ export function exportActivosToCSV(activos: any[]): string {
   };
 
   const rows = activos.map(a => {
-    const vig = calculateVigencia(a.fin_gestion);
+    const vig = calculateVigencia(a.fin_servicio);
     return [
       escapeCSV(a.codigo),
       escapeCSV(a.estado),
@@ -346,16 +364,19 @@ export function exportActivosToCSV(activos: any[]): string {
       escapeCSV(a.plataforma_nombre),
       escapeCSV(a.ip_url_gestion),
       escapeCSV(a.generacion_actas || 'N/A'),
-      escapeCSV(a.pet || 'N/A'),
+      escapeCSV(a.plataforma_pet || 'N/A'),
       escapeCSV(a.nombre_proyecto || 'N/A'),
       escapeCSV(a.cogestion),
       escapeCSV(a.soporte_n1),
       escapeCSV(a.correo_soporte || 'N/A'),
-      escapeCSV(a.inicio_gestion || 'N/A'),
-      escapeCSV(a.fin_gestion || 'N/A'),
+      escapeCSV(a.inicio_servicio || 'N/A'),
+      escapeCSV(a.fin_servicio || 'N/A'),
+      escapeCSV(a.fecha_activacion_licencias || 'N/A'),
+      escapeCSV(a.fecha_finalizacion_licencias || 'N/A'),
       escapeCSV(vig.dias_restantes !== null ? vig.dias_restantes : ''),
       escapeCSV(vig.texto_vigencia),
-      escapeCSV(vig.estado_vigencia)
+      escapeCSV(vig.estado_vigencia),
+      escapeCSV(a.pep || 'N/A')
     ].join(',');
   });
 

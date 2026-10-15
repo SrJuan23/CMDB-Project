@@ -26,8 +26,10 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
     let query = `
       SELECT 
         a.id, a.codigo, a.cliente_id, a.hostname, a.serial_number, a.plataforma_id,
-        a.ip_url_gestion, a.generacion_actas, a.pet, a.nombre_proyecto,
-        a.cogestion, a.inicio_gestion, a.fin_gestion,
+        a.ip_url_gestion, a.generacion_actas, a.nombre_proyecto,
+        a.cogestion, a.inicio_servicio, a.fin_servicio,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         a.correo_soporte, a.soporte_n1, a.pep, a.estado, a.created_at, a.updated_at,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
@@ -80,7 +82,6 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         a.serial_number LIKE ? OR
         a.ip_url_gestion LIKE ? OR
         a.correo_soporte LIKE ? OR
-        a.pet LIKE ? OR
         a.nombre_proyecto LIKE ? OR
         a.pep LIKE ? OR
         c.nombre LIKE ? OR
@@ -88,7 +89,7 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
         p.sku LIKE ?
       )`);
       params.push(
-        searchTerm, searchTerm, searchTerm, searchTerm, searchTerm,
+        searchTerm, searchTerm, searchTerm, searchTerm,
         searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm
       );
     }
@@ -100,16 +101,18 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
     const rawRows = await getAll(query, params);
 
     let enriched = rawRows.map(row => {
-      const vig = calculateVigencia(row.fin_gestion, threshold);
+      const vig = calculateVigencia(row.fin_servicio, threshold);
 
       return {
         ...row,
         vigencia: vig,
         dias_restantes: vig.dias_restantes,
         estado_vigencia: vig.estado_vigencia,
-        inicio_gestion_formateada: formatDateSpanish(row.inicio_gestion),
-        fin_gestion_formateada: formatDateSpanish(row.fin_gestion),
-        generacion_actas_formateada: formatDateSpanish(row.generacion_actas)
+        inicio_servicio_formateada: formatDateSpanish(row.inicio_servicio),
+        fin_servicio_formateada: formatDateSpanish(row.fin_servicio),
+        generacion_actas_formateada: formatDateSpanish(row.generacion_actas),
+        fecha_finalizacion_licencias_formateada: formatDateSpanish(row.fecha_finalizacion_licencias),
+        fecha_activacion_licencias_formateada: formatDateSpanish(row.fecha_activacion_licencias)
       };
     });
 
@@ -131,7 +134,7 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
       });
     }
 
-    const allForCounts = await getAll('SELECT a.estado, a.fin_gestion FROM activos a');
+    const allForCounts = await getAll('SELECT a.estado, a.fin_servicio FROM activos a');
 
     let counts = {
       todos: allForCounts.length,
@@ -143,7 +146,7 @@ export async function getActivos(req: AuthenticatedRequest, res: Response) {
     };
 
     allForCounts.forEach(a => {
-      const v = calculateVigencia(a.fin_gestion, threshold);
+      const v = calculateVigencia(a.fin_servicio, threshold);
       if (v.estado_vigencia === 'VIGENTE') counts.vigentes++;
       if (v.estado_vigencia === 'PRÓXIMO A VENCER') counts.proximos++;
       if (v.estado_vigencia === 'VENCIDO') counts.vencidos++;
@@ -206,6 +209,8 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
     const activo = await getOne(`
       SELECT 
         a.*,
+        a."Fecha_finalización_licencias" AS fecha_finalizacion_licencias,
+        a."Fecha_activacion_licencias" AS fecha_activacion_licencias,
         c.nombre AS cliente_nombre,
         p.nombre AS plataforma_nombre,
         p.sku AS plataforma_sku,
@@ -235,7 +240,7 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
       ORDER BY u.nombre ASC
     `, [activo.id]);
 
-    const vigencia = calculateVigencia(activo.fin_gestion);
+    const vigencia = calculateVigencia(activo.fin_servicio);
 
     return res.json({
       ...activo,
@@ -246,9 +251,11 @@ export async function getActivoById(req: AuthenticatedRequest, res: Response) {
       vigencia,
       dias_restantes: vigencia.dias_restantes,
       estado_vigencia: vigencia.estado_vigencia,
-      inicio_gestion_formateada: formatDateSpanish(activo.inicio_gestion),
-      fin_gestion_formateada: formatDateSpanish(activo.fin_gestion),
-      generacion_actas_formateada: formatDateSpanish(activo.generacion_actas)
+      inicio_servicio_formateada: formatDateSpanish(activo.inicio_servicio),
+      fin_servicio_formateada: formatDateSpanish(activo.fin_servicio),
+      generacion_actas_formateada: formatDateSpanish(activo.generacion_actas),
+      fecha_finalizacion_licencias_formateada: formatDateSpanish(activo.fecha_finalizacion_licencias),
+      fecha_activacion_licencias_formateada: formatDateSpanish(activo.fecha_activacion_licencias)
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -298,11 +305,12 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       plataforma_id,
       ip_url_gestion,
       generacion_actas,
-      pet,
       nombre_proyecto,
       cogestion = 'NO',
-      inicio_gestion,
-      fin_gestion,
+      inicio_servicio,
+      fin_servicio,
+      fecha_finalizacion_licencias,
+      fecha_activacion_licencias,
       correo_soporte,
       soporte_n1 = 'NO',
       pep,
@@ -333,9 +341,11 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
     const nextNum = (lastNumRow?.max_num || 0) + 1;
     const codigo = `ACT-${String(nextNum).padStart(6, '0')}`;
 
-    const inicioParsed = parseExcelDate(inicio_gestion);
-    const finParsed = parseExcelDate(fin_gestion);
+    const inicioParsed = parseExcelDate(inicio_servicio);
+    const finParsed = parseExcelDate(fin_servicio);
     const genActasParsed = generacion_actas ? parseExcelDate(generacion_actas) : null;
+    const fechaFinalizacionLicenciasParsed = parseExcelDate(fecha_finalizacion_licencias);
+    const fechaActivacionLicenciasParsed = parseExcelDate(fecha_activacion_licencias);
 
     const userName = req.user?.nombre || 'Usuario';
 
@@ -343,10 +353,11 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
       const insertResult = await run(`
         INSERT INTO activos (
           codigo, cliente_id, hostname, serial_number, plataforma_id, ip_url_gestion,
-          generacion_actas, pet, nombre_proyecto,
-          cogestion, inicio_gestion, fin_gestion, correo_soporte, soporte_n1,
+          generacion_actas, nombre_proyecto,
+          cogestion, inicio_servicio, fin_servicio, "Fecha_finalización_licencias",
+          "Fecha_activacion_licencias", correo_soporte, soporte_n1,
           pep, estado, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
         codigo,
         parseInt(cliente_id, 10),
@@ -355,11 +366,12 @@ export async function createActivo(req: AuthenticatedRequest, res: Response) {
         parseInt(plataforma_id, 10),
         (ip_url_gestion || 'N/A').trim(),
         genActasParsed,
-        pet ? pet.trim() : null,
         nombre_proyecto ? nombre_proyecto.trim() : null,
         cogestion === 'SI' ? 'SI' : 'NO',
         inicioParsed,
         finParsed,
+        fechaFinalizacionLicenciasParsed,
+        fechaActivacionLicenciasParsed,
         correo_soporte ? correo_soporte.trim() : null,
         soporte_n1 === 'SI' ? 'SI' : 'NO',
         pep ? pep.trim() : null,
@@ -400,11 +412,12 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       plataforma_id,
       ip_url_gestion,
       generacion_actas,
-      pet,
       nombre_proyecto,
       cogestion,
-      inicio_gestion,
-      fin_gestion,
+      inicio_servicio,
+      fin_servicio,
+      fecha_finalizacion_licencias,
+      fecha_activacion_licencias,
       correo_soporte,
       soporte_n1,
       pep,
@@ -420,9 +433,15 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
     const userName = req.user?.nombre || 'Usuario';
     const userId = req.user?.id || null;
 
-    const inicioParsed = inicio_gestion ? parseExcelDate(inicio_gestion) : old.inicio_gestion;
-    const finParsed = fin_gestion ? parseExcelDate(fin_gestion) : old.fin_gestion;
+    const inicioParsed = inicio_servicio !== undefined ? parseExcelDate(inicio_servicio) : old.inicio_servicio;
+    const finParsed = fin_servicio !== undefined ? parseExcelDate(fin_servicio) : old.fin_servicio;
     const genActasParsed = generacion_actas !== undefined ? parseExcelDate(generacion_actas) : old.generacion_actas;
+    const fechaFinalizacionLicenciasParsed = fecha_finalizacion_licencias !== undefined
+      ? parseExcelDate(fecha_finalizacion_licencias)
+      : old['Fecha_finalización_licencias'];
+    const fechaActivacionLicenciasParsed = fecha_activacion_licencias !== undefined
+      ? parseExcelDate(fecha_activacion_licencias)
+      : old['Fecha_activacion_licencias'];
 
     await transaction(async () => {
       const checkDiff = async (field: string, oldVal: any, newVal: any) => {
@@ -438,13 +457,15 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
       await checkDiff('Serial Number', old.serial_number, serial_number);
       await checkDiff('IP/URL Gestión', old.ip_url_gestion, ip_url_gestion);
       await checkDiff('Generación de Actas', old.generacion_actas, genActasParsed);
-      await checkDiff('PET', old.pet, pet);
       await checkDiff('Nombre del Proyecto', old.nombre_proyecto, nombre_proyecto);
       await checkDiff('Cogestión', old.cogestion, cogestion);
       await checkDiff('Soporte N1', old.soporte_n1, soporte_n1);
       await checkDiff('Correo Soporte', old.correo_soporte, correo_soporte);
-      await checkDiff('Inicio Gestión', old.inicio_gestion, inicioParsed);
-      await checkDiff('Fin Gestión', old.fin_gestion, finParsed);
+      await checkDiff('Inicio Servicio', old.inicio_servicio, inicioParsed);
+      await checkDiff('Fin Servicio', old.fin_servicio, finParsed);
+      await checkDiff('Fecha de activación de licencias', old['Fecha_activacion_licencias'], fechaActivacionLicenciasParsed);
+      await checkDiff('Fecha de finalización de licencias', old['Fecha_finalización_licencias'], fechaFinalizacionLicenciasParsed);
+      await checkDiff('PEP', old.pep, pep);
       await checkDiff('Estado', old.estado, estado);
 
       await run(`
@@ -455,14 +476,15 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
           plataforma_id = COALESCE(?, plataforma_id),
           ip_url_gestion = COALESCE(?, ip_url_gestion),
           generacion_actas = ?,
-          pet = COALESCE(?, pet),
           nombre_proyecto = COALESCE(?, nombre_proyecto),
           cogestion = COALESCE(?, cogestion),
-          inicio_gestion = ?,
-          fin_gestion = ?,
+          inicio_servicio = ?,
+          fin_servicio = ?,
+          "Fecha_finalización_licencias" = ?,
+          "Fecha_activacion_licencias" = ?,
           correo_soporte = ?,
           soporte_n1 = COALESCE(?, soporte_n1),
-          pep = COALESCE(?, pep),
+          pep = ?,
           estado = COALESCE(?, estado),
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
@@ -473,14 +495,15 @@ export async function updateActivo(req: AuthenticatedRequest, res: Response) {
         plataforma_id ? parseInt(plataforma_id, 10) : null,
         ip_url_gestion ? ip_url_gestion.trim() : null,
         genActasParsed,
-        pet !== undefined ? (pet ? pet.trim() : null) : old.pet,
         nombre_proyecto !== undefined ? (nombre_proyecto ? nombre_proyecto.trim() : null) : old.nombre_proyecto,
         cogestion,
         inicioParsed,
         finParsed,
+        fechaFinalizacionLicenciasParsed,
+        fechaActivacionLicenciasParsed,
         correo_soporte !== undefined ? (correo_soporte ? correo_soporte.trim() : null) : old.correo_soporte,
         soporte_n1,
-        pep,
+        pep !== undefined ? (pep ? pep.trim() : null) : old.pep,
         estado,
         old.id
       ]);

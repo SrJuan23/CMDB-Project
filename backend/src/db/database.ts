@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   password_hash VARCHAR(255),
   rol VARCHAR(20) NOT NULL DEFAULT 'GESTOR',
   estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
-  password_change_required BOOLEAN NOT NULL DEFAULT TRUE,
+  password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
   puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE,
   puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS activos (
   plataforma_id INTEGER NOT NULL REFERENCES plataformas(id) ON UPDATE CASCADE,
   ip_url_gestion TEXT NOT NULL,
   cogestion VARCHAR(2) NOT NULL DEFAULT 'NO',
-  inicio_gestion DATE,
-  fin_gestion DATE,
+  inicio_servicio DATE,
+  fin_servicio DATE,
   correo_soporte VARCHAR(200),
   soporte_n1 VARCHAR(2) NOT NULL DEFAULT 'NO',
   pep VARCHAR(100),
@@ -64,8 +64,9 @@ CREATE TABLE IF NOT EXISTS activos (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   generacion_actas DATE,
-  pet VARCHAR(100),
-  nombre_proyecto VARCHAR(200)
+  nombre_proyecto VARCHAR(200),
+  "Fecha_finalización_licencias" DATE,
+  "Fecha_activacion_licencias" DATE
 );
 
 CREATE TABLE IF NOT EXISTS activo_administrador (
@@ -107,7 +108,7 @@ const PG_SCHEMA_INDEXES = `
   CREATE INDEX IF NOT EXISTS idx_activos_cliente ON activos(cliente_id);
   CREATE INDEX IF NOT EXISTS idx_activos_plataforma ON activos(plataforma_id);
   CREATE INDEX IF NOT EXISTS idx_activos_serial ON activos(serial_number);
-  CREATE INDEX IF NOT EXISTS idx_activos_fin_gestion ON activos(fin_gestion);
+  CREATE INDEX IF NOT EXISTS idx_activos_fin_servicio ON activos(fin_servicio);
   CREATE INDEX IF NOT EXISTS idx_historial_activo ON historial_activo(activo_id);
   CREATE INDEX IF NOT EXISTS idx_activo_admin_activo ON activo_administrador(activo_id);
   CREATE INDEX IF NOT EXISTS idx_activo_admin_usuario ON activo_administrador(usuario_id);
@@ -120,9 +121,60 @@ export async function initDatabase() {
   await pool.query(PG_SCHEMA_TABLES);
 
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS generacion_actas DATE');
-  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pet VARCHAR(100)');
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS nombre_proyecto VARCHAR(200)');
   await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS pep VARCHAR(100)');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS inicio_servicio DATE');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS fin_servicio DATE');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS "Fecha_finalización_licencias" DATE');
+  await pool.query('ALTER TABLE activos ADD COLUMN IF NOT EXISTS "Fecha_activacion_licencias" DATE');
+  await pool.query('DROP INDEX IF EXISTS idx_activos_fin_gestion');
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'activos' AND column_name = 'inicio_gestion'
+      ) THEN
+        UPDATE activos SET inicio_servicio = COALESCE(inicio_servicio, inicio_gestion);
+        ALTER TABLE activos DROP COLUMN inicio_gestion;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'activos' AND column_name = 'fin_gestion'
+      ) THEN
+        UPDATE activos SET fin_servicio = COALESCE(fin_servicio, fin_gestion);
+        ALTER TABLE activos DROP COLUMN fin_gestion;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'activos' AND column_name = 'pet'
+      ) THEN
+        UPDATE activos
+        SET pep = COALESCE(NULLIF(BTRIM(pep), ''), NULLIF(BTRIM(pet), ''));
+        ALTER TABLE activos DROP COLUMN pet;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'activos' AND column_name = '_pep'
+      ) THEN
+        UPDATE activos
+        SET pep = COALESCE(NULLIF(BTRIM(pep), ''), NULLIF(BTRIM(_pep), ''));
+        ALTER TABLE activos DROP COLUMN _pep;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'activos' AND column_name = 'pep_'
+      ) THEN
+        UPDATE activos
+        SET pep = COALESCE(NULLIF(BTRIM(pep), ''), NULLIF(BTRIM(pep_), ''));
+        ALTER TABLE activos DROP COLUMN pep_;
+      END IF;
+    END $$;
+  `);
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS password_change_required BOOLEAN NOT NULL DEFAULT FALSE');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS puede_iniciar_sesion BOOLEAN NOT NULL DEFAULT TRUE');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS puede_ser_asignado BOOLEAN NOT NULL DEFAULT FALSE');
@@ -182,7 +234,7 @@ export async function initDatabase() {
 
   const config = await getOne('SELECT COUNT(*) as count FROM configuracion');
   if (!config || Number(config.count) === 0) {
-    await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['dias_proximo_vencer', '30']);
-    await run('INSERT INTO configuracion (clave, valor) VALUES (?, ?)', ['bloquear_duplicados_serial', '0']);
+    await run("INSERT INTO configuracion (clave, valor) VALUES ('dias_proximo_vencer', '30')");
+    await run("INSERT INTO configuracion (clave, valor) VALUES ('bloquear_duplicados_serial', '0')");
   }
 }

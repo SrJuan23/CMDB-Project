@@ -20,6 +20,7 @@ export function renderPlataformasView(plataformas: Plataforma[]): string {
         ` : plataformas.map(p => `
           <div class="cmdb-card-interactive p-5">
         ${p.sku ? `<span class="text-xs font-mono text-[#0945F7] bg-[#EDF0FF] px-2 py-0.5 rounded font-heading">${p.sku}</span>` : ''}
+        ${p.pet ? `<span class="ml-1 text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-heading">PET: ${p.pet}</span>` : ''}
         <div class="flex items-start justify-between mb-2">
           <h3 class="text-sm font-bold text-[#19255A] font-heading leading-tight pr-2">${p.nombre}</h3>
           <span class="${p.estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo'} text-[10px]">${p.estado}</span>

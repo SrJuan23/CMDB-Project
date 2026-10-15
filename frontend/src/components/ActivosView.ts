@@ -186,7 +186,7 @@ export function renderActivosView(
               <option value="hostname" ${filters.sort_by === 'hostname' ? 'selected' : ''}>Hostname</option>
               <option value="serial_number" ${filters.sort_by === 'serial_number' ? 'selected' : ''}>Serial Number</option>
               <option value="plataforma" ${filters.sort_by === 'plataforma' ? 'selected' : ''}>Plataforma</option>
-              <option value="fin_gestion" ${filters.sort_by === 'fin_gestion' ? 'selected' : ''}>Fin de gestión</option>
+              <option value="fin_servicio" ${filters.sort_by === 'fin_servicio' ? 'selected' : ''}>Fin de servicio</option>
             </select>
           </div>
 
@@ -241,10 +241,15 @@ export function renderActivosView(
                 <th class="px-4 py-3 whitespace-nowrap">Hostname</th>
                 <th class="px-4 py-3 whitespace-nowrap">Serial Number</th>
                 <th class="px-4 py-3 whitespace-nowrap">Plataforma</th>
-                <th class="px-4 py-3 whitespace-nowrap">PET / Proyecto</th>
+                <th class="px-4 py-3 whitespace-nowrap">PEP</th>
+                <th class="px-4 py-3 whitespace-nowrap">Proyecto</th>
                 <th class="px-4 py-3 whitespace-nowrap">Gestión</th>
                 <th class="px-4 py-3 whitespace-nowrap">Administrador(es)</th>
-                <th class="px-4 py-3 whitespace-nowrap">Fin Gestión</th>
+                <th class="px-4 py-3 whitespace-nowrap">Inicio Servicio</th>
+                <th class="px-4 py-3 whitespace-nowrap">Fin Servicio</th>
+                <th class="px-4 py-3 whitespace-nowrap">Generación Actas</th>
+                <th class="px-4 py-3 whitespace-nowrap">Activación Licencias</th>
+                <th class="px-4 py-3 whitespace-nowrap">Finalización Licencias</th>
                 <th class="px-4 py-3 whitespace-nowrap">Vigencia</th>
                 <th class="px-4 py-3 text-right whitespace-nowrap">Acciones</th>
               </tr>
@@ -252,7 +257,7 @@ export function renderActivosView(
             <tbody class="divide-y divide-slate-100">
               ${activos.length === 0 ? `
                 <tr>
-                  <td colspan="12" class="px-5 py-12 text-center text-slate-400">
+                  <td colspan="17" class="px-5 py-12 text-center text-slate-400">
                     <div class="flex flex-col items-center justify-center gap-2">
                       <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                       <p class="text-sm font-medium text-slate-500 font-heading">No se encontraron activos con los filtros aplicados</p>
@@ -306,10 +311,14 @@ export function renderActivosView(
                     </span>
                   </td>
 
-                  <!-- PET / Proyecto -->
+                  <!-- PEP -->
                   <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
-                    <div class="font-semibold text-[#19255A]">${a.pet || '—'}</div>
-                    <div class="text-[11px] text-slate-500 max-w-[140px] truncate" title="${a.nombre_proyecto || 'Sin proyecto'}">${a.nombre_proyecto || 'Sin proyecto'}</div>
+                    ${a.pep || '—'}
+                  </td>
+
+                  <!-- Proyecto -->
+                  <td class="px-4 py-3 text-xs text-slate-600 max-w-[140px] truncate whitespace-nowrap" title="${a.nombre_proyecto || 'Sin proyecto'}">
+                    ${a.nombre_proyecto || '—'}
                   </td>
 
                   <!-- Gestión (IP / URL) (Section 8) -->
@@ -334,9 +343,27 @@ export function renderActivosView(
                     ${a.administradores_str || '<span class="text-slate-400 italic">Sin asignar</span>'}
                   </td>
 
-                  <!-- Fin de Gestión -->
+                  <!-- Inicio Servicio -->
                   <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
-                    ${a.fin_gestion_formateada}
+                    ${a.inicio_servicio_formateada}
+                  </td>
+
+                  <!-- Fin Servicio -->
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    ${a.fin_servicio_formateada}
+                  </td>
+
+                  <!-- Generación Actas -->
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    ${a.generacion_actas_formateada || 'N/A'}
+                  </td>
+
+                  <!-- Fechas de licencias -->
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    ${a.fecha_activacion_licencias_formateada}
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    ${a.fecha_finalizacion_licencias_formateada}
                   </td>
 
                   <!-- Vigencia (Dynamic calculation) -->

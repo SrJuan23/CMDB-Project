@@ -97,5 +97,6 @@ PUT    /api/config
 - El archivo `backend/.env` **no** se versiona. Copiá desde `.env.example`.
 - Para producción, cambiá `JWT_SECRET`.
 - Los seeds por defecto son solo para desarrollo.
+- El esquema se actualiza al iniciar el backend. En una base nueva, importa primero el dump de migración PostgreSQL en una base vacía; el seed ya no crea registros de activos de ejemplo. Ver [PRODUCTION.md](./PRODUCTION.md).
 - Backend sirve el frontend build si existe `frontend/dist/`.
 - Para crear la base de datos e importar un Excel: `node backend/scripts/import_excel.js <ruta.xlsx>`.
